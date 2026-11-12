@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}ข่าวประกาศ{% endblock %}
+{% block content %}
+{% call m.page_header('ข่าวและประกาศ') %}{% endcall %}
+<form class="row g-2 mb-3">
+  <div class="col-12 col-md-6"><input class="form-control" name="q" value="{{ q }}" placeholder="ค้นหาข่าว"></div>
+  <div class="col-8 col-md-4">
+    <select class="form-select" name="cat"><option value="">ทุกหมวด</option>
+      {% for c in cats.values() %}<option value="{{ c.id }}" {% if cat == c.id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="col-4 col-md-2 d-grid"><button class="btn btn-sta">ค้นหา</button></div>
+</form>
+<div class="row g-3">
+  {% for a in items %}
+  <div class="col-md-6 col-lg-4">
+    <a class="card h-100 text-decoration-none text-body" href="{{ url_for('public.news_detail', slug=a.slug) }}">
+      {% if a.cover_path %}<img class="news-cover" src="{{ url_for('announcements.cover', aid=a.id) }}" alt="" loading="lazy">{% endif %}
+      <div class="card-body">
+        <div class="small mb-1">
+          {% if a.is_pinned %}<span class="badge text-bg-warning"><i class="bi bi-pin-angle"></i></span>{% endif %}
+          <span class="badge text-bg-light">{{ cats.get(a.category_id, {}).get('name', '') }}</span>
+          <span class="text-secondary">{{ a.publish_at|thaiday }}</span>
+        </div>
+        <div class="fw-semibold">{{ a.title }}</div>
+        <div class="small text-secondary mt-1">{{ (a.body or '')[:120] }}{% if (a.body or '')|length > 120 %}…{% endif %}</div>
+      </div>
+    </a>
+  </div>
+  {% else %}<div class="col-12">{{ m.empty('ไม่พบข่าว') }}</div>{% endfor %}
+</div>
+{% endblock %}

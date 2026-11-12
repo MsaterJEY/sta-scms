@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}คำขอ {{ r.tracking_code }}{% endblock %}
+{% block content %}
+{% call m.page_header('คำขอยืม ' ~ r.tracking_code, (r.borrow_at|thaidate) ~ ' – ' ~ (r.due_at|thaidate)) %}
+{{ m.badge(r.status) }}{% if overdue %}<span class="badge text-bg-danger">เกินกำหนด</span>{% endif %}{% if r.is_self_request %}<span class="badge text-bg-info">ผู้ขอคือหัวหน้าฝ่าย</span>{% endif %}
+{% endcall %}
+<div class="row g-3">
+<div class="col-lg-8">
+  <div class="card mb-3"><div class="card-header">รายการอุปกรณ์</div><div class="table-responsive"><table class="table table-sm mb-0">
+    <thead><tr><th>อุปกรณ์</th><th>ขอ</th><th>อนุมัติ</th><th>จ่าย</th><th>คืน</th><th>ชำรุด</th><th>สูญหาย</th><th>ค้าง</th></tr></thead><tbody>
+    {% for it in items %}{% set mo = models.get(it.model_id, {}) %}<tr><td>{{ mo.name }}{% if it.unit_ids %}<div class="small text-secondary">{% for uid in it.unit_ids %}{{ units.get(uid, {}).get('asset_tag') }} {% endfor %}</div>{% endif %}</td>
+      <td>{{ it.qty_requested }}</td><td>{{ it.qty_approved }}</td><td>{{ it.qty_issued }}</td><td>{{ it.qty_returned }}</td><td>{{ it.qty_damaged }}</td><td>{{ it.qty_lost }}</td><td>{{ it.outstanding }}</td></tr>{% endfor %}
+    </tbody></table></div></div>
+
+  {# --- พิจารณา --- #}
+  {% if r.status == 'PENDING' and ((manage and not r.is_self_request) or self_approver) %}
+  <div class="card mb-3 border-warning"><div class="card-header">พิจารณาคำขอ {% if r.is_self_request %}(แทนหัวหน้าฝ่ายอุปกรณ์){% endif %}</div><div class="card-body">
+    <form method="post" action="{{ url_for('equipment.request_action', rid=r.id) }}">{{ m.csrf() }}
+      {% for it in items %}<div class="row g-2 align-items-center mb-2"><div class="col-7 small">{{ models[it.model_id].name }} (ขอ {{ it.qty_requested }}, คงเหลือในช่วง {{ it.avail }})</div>
+        <div class="col-5"><input class="form-control form-control-sm" type="number" min="0" max="{{ it.qty_requested }}" name="approve_{{ it.id }}" value="{{ [it.qty_requested, it.avail]|min }}"></div></div>{% endfor %}
+      <input class="form-control mb-2" name="reason" placeholder="เหตุผล (บังคับเมื่อปฏิเสธ)">
+      <button name="action" value="approve" class="btn btn-success">อนุมัติ</button>
+      <button name="action" value="reject" class="btn btn-outline-danger">ปฏิเสธ</button></form></div></div>
+  {% elif r.status == 'PENDING' and manage and r.is_self_request %}
+  <div class="alert alert-info small">คำขอของหัวหน้าฝ่ายอุปกรณ์เอง ต้องให้อุปนายกฝ่ายบริหารและสัมพันธ์อนุมัติ</div>
+  {% endif %}
+
+  {# --- จ่าย --- #}
+  {% if r.status == 'APPROVED' and manage %}
+  <div class="card mb-3 border-primary"><div class="card-header">จ่ายอุปกรณ์</div><div class="card-body">
+    <form method="post" action="{{ url_for('equipment.request_action', rid=r.id) }}">{{ m.csrf() }}<input type="hidden" name="action" value="issue">
+      {% for it in items if models[it.model_id].is_serialized and it.qty_approved %}
+      <label class="form-label small">{{ models[it.model_id].name }}: สแกน/พิมพ์รหัสครุภัณฑ์ {{ it.qty_approved }} รายการ (บรรทัดละรายการ)</label>
+      <textarea class="form-control form-control-sm mb-2" name="units_{{ it.id }}" rows="{{ it.qty_approved }}" placeholder="{% for u in units.values() if u.model_id == it.model_id and u.status == 'AVAILABLE' %}{{ u.asset_tag }} {% endfor %}"></textarea>
+      {% endfor %}
+      <input class="form-control mb-2" name="receiver_name" placeholder="ชื่อผู้รับของ" value="{{ requester|uname }}" required>
+      <div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="id_checked" id="idc"><label class="form-check-label small" for="idc">ตรวจบัตรผู้ยืมแล้ว</label></div>
+      <button class="btn btn-primary">บันทึกการจ่าย</button></form></div></div>
+  {% endif %}
+
+  {# --- รับคืน --- #}
+  {% if r.status in ['ISSUED', 'PARTIAL_RETURNED'] and manage %}
+  <div class="card mb-3 border-success"><div class="card-header">รับคืนและตรวจสภาพ (คืนบางส่วนได้)</div><div class="card-body">
+    <form method="post" action="{{ url_for('equipment.request_action', rid=r.id) }}">{{ m.csrf() }}<input type="hidden" name="action" value="return">
+      {% for it in items if it.outstanding %}{% set mo = models[it.model_id] %}
+      <div class="fw-semibold small mt-2">{{ mo.name }} (ค้าง {{ it.outstanding }})</div>
+      {% if mo.is_serialized %}
+        {% for uid in it.unit_ids if units.get(uid, {}).get('status') == 'BORROWED' %}
+        <div class="row g-2 align-items-center mb-1"><div class="col-3 small"><code>{{ units[uid].asset_tag }}</code></div>
+          <div class="col-4"><select class="form-select form-select-sm" name="unit_{{ uid }}"><option value="">ยังไม่คืน</option><option value="RETURN">คืนสภาพดี</option><option value="DAMAGED">ชำรุด</option><option value="LOST">สูญหาย</option></select></div>
+          <div class="col-5"><input class="form-control form-control-sm" name="cond_{{ uid }}" placeholder="สภาพหลังใช้"></div></div>{% endfor %}
+      {% else %}
+        <div class="row g-2 mb-1"><div class="col-3"><input class="form-control form-control-sm" type="number" min="0" max="{{ it.outstanding }}" name="ret_{{ it.id }}" placeholder="คืน"></div>
+          <div class="col-3"><input class="form-control form-control-sm" type="number" min="0" name="dmg_{{ it.id }}" placeholder="ชำรุด"></div>
+          <div class="col-3"><input class="form-control form-control-sm" type="number" min="0" name="lost_{{ it.id }}" placeholder="สูญหาย"></div>
+          <div class="col-3"><input class="form-control form-control-sm" name="cond_{{ it.id }}" placeholder="สภาพ"></div></div>
+      {% endif %}{% endfor %}
+      <button class="btn btn-success mt-2">บันทึกรับคืน</button></form></div></div>
+  {% endif %}
+
+  {% if r.status == 'RETURNED' and r.is_self_request and self_approver and not r.return_confirmed_at %}
+  <div class="card mb-3"><div class="card-body"><form method="post" action="{{ url_for('equipment.request_action', rid=r.id) }}">{{ m.csrf() }}<input type="hidden" name="action" value="confirm_return">
+    <button class="btn btn-success">ยืนยันรับคืน (อุปนายกฝ่ายบริหารฯ)</button></form></div></div>{% endif %}
+
+  {# --- ค่าชดใช้ --- #}
+  <div class="card mb-3"><div class="card-header">ค่าชดใช้</div>
+    <ul class="list-group list-group-flush">{% for f in fines %}
+      <li class="list-group-item d-flex flex-wrap justify-content-between gap-2 align-items-center"><span>{{ {'LATE':'คืนล่าช้า','DAMAGE':'ชำรุด','LOSS':'สูญหาย'}[f.type] }} · {{ '{:,.2f}'.format(f.amount) }} บาท {{ m.badge(f.status) }}<div class="small text-secondary">{{ f.note }}</div></span>
+        {% if manage and f.status == 'PENDING' %}<form method="post" action="{{ url_for('equipment.settle_fine', fid=f.id) }}" class="d-flex gap-1">{{ m.csrf() }}
+          <input class="form-control form-control-sm" name="note" placeholder="หมายเหตุ/เหตุผลยกเว้น" style="max-width:180px">
+          <button name="status" value="PAID" class="btn btn-sm btn-outline-success">ชำระแล้ว</button><button name="status" value="WAIVED" class="btn btn-sm btn-outline-secondary">ยกเว้น</button></form>{% endif %}</li>
+    {% else %}<li class="list-group-item small text-secondary">ไม่มี</li>{% endfor %}</ul>
+    {% if manage and r.status in ['ISSUED','PARTIAL_RETURNED','RETURNED'] %}<div class="card-body border-top">
+      <form method="post" action="{{ url_for('equipment.request_action', rid=r.id) }}" class="row g-2">{{ m.csrf() }}<input type="hidden" name="action" value="fine">
+        <div class="col-md-3"><select class="form-select form-select-sm" name="type"><option value="LATE">คืนล่าช้า</option><option value="DAMAGE">ชำรุด</option><option value="LOSS">สูญหาย</option></select></div>
+        <div class="col-md-3"><input class="form-control form-control-sm" type="number" step="0.01" min="0" name="amount" placeholder="บาท" required value="{{ default_fine }}"></div>
+        <div class="col-md-4"><input class="form-control form-control-sm" name="note" placeholder="หมายเหตุ"></div>
+        <div class="col-md-2 d-grid"><button class="btn btn-sm btn-outline-danger">บันทึก</button></div></form>
+      <div class="form-text">ค่าตั้งต้นคำนวณจากราคาทดแทนของรายการที่สูญหาย</div></div>{% endif %}
+  </div>
+
+  {% if manage and r.status == 'RETURNED' %}
+  <form method="post" action="{{ url_for('equipment.request_action', rid=r.id) }}">{{ m.csrf() }}<input type="hidden" name="action" value="close">
+    <button class="btn btn-dark" data-confirm="ปิดคำขอ?">ปิดคำขอ</button></form>{% endif %}
+  {% if r.requester_id == me.id and r.status in ['PENDING','APPROVED'] %}
+  <form method="post" action="{{ url_for('equipment.request_action', rid=r.id) }}" class="mt-2">{{ m.csrf() }}<input type="hidden" name="action" value="cancel">
+    <button class="btn btn-outline-danger btn-sm" data-confirm="ยกเลิกคำขอนี้?">ยกเลิกคำขอ</button></form>{% endif %}
+</div>
+
+<div class="col-lg-4">
+  <div class="card mb-3"><div class="card-header">ผู้ยืม</div><div class="card-body small">
+    <div class="fw-semibold">{{ requester|uname }}</div>
+    <div>{{ requester.student_code or '-' }} · {{ requester.account_type }}</div>
+    {% if show_contact %}<div>โทร {{ requester.phone or '-' }} · LINE {{ requester.line_id or '-' }}</div>{% endif %}
+    <hr><div><strong>วัตถุประสงค์:</strong> {{ r.purpose }}</div>
+    {% if activity %}<div><strong>กิจกรรม:</strong> {{ activity.title }}</div>{% endif %}
+    {% if r.reject_reason %}<div class="text-danger"><strong>เหตุผลที่ปฏิเสธ:</strong> {{ r.reject_reason }}</div>{% endif %}
+    {% if r.receiver_name %}<div><strong>ผู้รับของ:</strong> {{ r.receiver_name }} {% if r.id_checked %}(ตรวจบัตรแล้ว){% endif %}</div>{% endif %}
+    {% if r.return_confirmed_at %}<div><strong>ยืนยันรับคืน:</strong> {{ r.return_confirmed_at|thaidate }}</div>{% endif %}
+    {% if req_state %}<div><strong>การอนุมัติ:</strong> {{ req_state.label }}</div>{% endif %}
+  </div></div>
+  {% if manage %}<div class="card mb-3"><div class="card-header">เอกสารผู้ยืม (เข้ารหัส)</div><ul class="list-group list-group-flush small">
+    {% for d in docs %}<li class="list-group-item"><a href="{{ url_for('equipment.borrower_doc', did=d.id) }}" target="_blank">{{ 'บัตรนักศึกษา' if d.doc_type == 'STUDENT_CARD' else 'บัตรประชาชน' }}</a>{% if d.delete_after %} · ลบ {{ d.delete_after|thaiday }}{% endif %}<div class="text-secondary">การเปิดดูถูกบันทึกทุกครั้ง</div></li>
+    {% else %}<li class="list-group-item text-secondary">ไม่มี</li>{% endfor %}</ul></div>{% endif %}
+  <div class="card"><div class="card-header">ประวัติธุรกรรม</div><ul class="list-group list-group-flush small">
+    {% for t in txs %}<li class="list-group-item">{{ t.occurred_at|thaidate }} · {{ t.type }} × {{ t.qty }}{% if t.unit_id %} ({{ units.get(t.unit_id, {}).get('asset_tag') }}){% endif %}</li>
+    {% else %}<li class="list-group-item text-secondary">-</li>{% endfor %}</ul></div>
+</div></div>
+{% endblock %}

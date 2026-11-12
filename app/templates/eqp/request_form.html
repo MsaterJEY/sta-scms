@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}ส่งคำขอยืม{% endblock %}
+{% block content %}
+{% call m.page_header('ส่งคำขอยืมอุปกรณ์') %}{% endcall %}
+{% if blocks %}<div class="alert alert-danger">ส่งคำขอใหม่ไม่ได้: {{ blocks|join(' · ') }}</div>{% endif %}
+<form method="get" class="row g-2 mb-3">
+  <div class="col-6 col-md-4"><label class="form-label small mb-0">วันยืม</label><input class="form-control" type="datetime-local" name="start" value="{{ start|inputdt }}"></div>
+  <div class="col-6 col-md-4"><label class="form-label small mb-0">วันคืน</label><input class="form-control" type="datetime-local" name="end" value="{{ end|inputdt }}"></div>
+  <div class="col-12 col-md-4 d-grid align-self-end"><button class="btn btn-outline-secondary">ตรวจจำนวนคงเหลือช่วงนี้</button></div>
+</form>
+<form method="post" enctype="multipart/form-data">{{ m.csrf() }}
+  <input type="hidden" name="borrow_at" value="{{ start|inputdt }}"><input type="hidden" name="due_at" value="{{ end|inputdt }}">
+  <div class="card mb-3"><div class="card-header">เลือกอุปกรณ์ ({{ start|thaidate }} – {{ end|thaidate }})</div><div class="table-responsive"><table class="table table-sm mb-0">
+    <thead><tr><th>อุปกรณ์</th><th>ว่าง</th><th style="width:110px">จำนวน</th></tr></thead><tbody>
+    {% for mo in models %}<tr class="{{ 'table-success' if preselect == mo.id }}"><td>{{ mo.name }} <span class="small text-secondary">{{ mo.code }}</span></td><td>{{ mo.avail }}</td>
+      <td><input class="form-control form-control-sm" type="number" min="0" max="{{ mo.avail }}" name="qty_{{ mo.id }}" value="{{ 1 if preselect == mo.id and mo.avail else '' }}" {% if not mo.avail %}disabled{% endif %}></td></tr>
+    {% endfor %}</tbody></table></div></div>
+  <div class="card mb-3"><div class="card-body">
+    <label class="form-label">วัตถุประสงค์</label><textarea class="form-control mb-2" name="purpose" rows="2" required></textarea>
+    <label class="form-label">ใช้ในกิจกรรม (ไม่บังคับ)</label><select class="form-select mb-2" name="activity_id"><option value="">- ไม่ผูกกิจกรรม -</option>{% for a in acts %}<option value="{{ a.id }}">{{ a.title }}</option>{% endfor %}</select>
+    {% if doc_type %}
+    <label class="form-label">แนบ{{ 'รูปบัตรนักศึกษา' if doc_type == 'STUDENT_CARD' else 'รูปบัตรประชาชน (แนะนำเฉพาะด้านหน้า ปิดข้อมูลที่ไม่จำเป็น)' }} <span class="text-danger">*</span></label>
+    <input class="form-control mb-1" type="file" name="borrower_doc" accept="image/*,.pdf" required>
+    <div class="form-text mb-2">ไฟล์ถูกเข้ารหัส เปิดดูได้เฉพาะหัวหน้าฝ่ายอุปกรณ์ และลบอัตโนมัติหลังปิดคำขอ</div>
+    {% endif %}
+    <div class="form-check"><input class="form-check-input" type="checkbox" name="consent" id="cs" required><label class="form-check-label small" for="cs">ยินยอมให้เก็บข้อมูลและเอกสารเพื่อการยืมอุปกรณ์ และยอมรับเงื่อนไขค่าชดใช้กรณีชำรุด/สูญหาย/คืนล่าช้า</label></div>
+  </div></div>
+  <button class="btn btn-sta" {% if blocks %}disabled{% endif %}>ส่งคำขอ</button>
+</form>
+{% endblock %}

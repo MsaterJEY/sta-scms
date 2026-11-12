@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}ตั้งค่าระบบ{% endblock %}
+{% block content %}
+{% call m.page_header('ตั้งค่าระบบ', 'ปีการศึกษาปัจจุบัน: ' ~ s.current_academic_year ~ ' (เปลี่ยนที่หน้า ปีการศึกษา)') %}{% endcall %}
+<div class="card" style="max-width:720px"><div class="card-body">
+<form method="post">{{ m.csrf() }}
+  {% set labels = {
+    'allow_external_borrowers': 'เปิดให้บุคคลภายนอกลงทะเบียนและยืมอุปกรณ์',
+    'require_sci_borrower_doc': 'บังคับแนบบัตรนักศึกษาสำหรับนักศึกษาคณะวิทย์ฯ',
+    'ticket_sla_days': 'SLA คำร้อง (วัน) ค่าเริ่มต้น',
+    'ticket_reopen_days': 'เปิดคำร้องใหม่ได้ภายใน (วันหลังปิด)',
+    'borrower_doc_retention_days': 'ลบเอกสารผู้ยืมหลังปิดคำขอ (วัน)',
+    'ticket_stats_min_group': 'ซ่อนกลุ่มสถิติคำร้องที่เล็กกว่า (เรื่อง)',
+    'max_member_choices': 'จำนวนอันดับที่เลือกได้ในใบสมัครกรรมการ',
+    'max_concurrent_loans': 'โควตาคำขอยืมพร้อมกันต่อคน',
+    'qr_rotate_seconds': 'QR เช็กชื่อเปลี่ยนค่าทุก (วินาที)',
+    'consent_valid_days': 'อายุความยินยอม (วัน)'} %}
+  {% for k, label in labels.items() %}
+    {% if s[k] is sameas true or s[k] is sameas false %}
+    <div class="form-check mb-3"><input class="form-check-input" type="checkbox" name="{{ k }}" id="{{ k }}" {% if s[k] %}checked{% endif %}><label class="form-check-label" for="{{ k }}">{{ label }}</label></div>
+    {% else %}
+    <div class="row mb-2 align-items-center"><label class="col-sm-8 col-form-label" for="{{ k }}">{{ label }}</label>
+      <div class="col-sm-4"><input class="form-control" type="number" min="0" name="{{ k }}" id="{{ k }}" value="{{ s[k] }}"></div></div>
+    {% endif %}
+  {% endfor %}
+  <button class="btn btn-sta mt-2">บันทึก</button>
+</form></div></div>
+{% endblock %}

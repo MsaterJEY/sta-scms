@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}ผลคัดเลือกทีมงาน{% endblock %}
+{% block content %}
+{% call m.page_header('ชุดผลคัดเลือกทีมงาน: ' ~ act.title, 'โหมด ANY — อุปนายกหรือเลขาฝ่ายบริหารฯ คนใดคนหนึ่งอนุมัติแล้วมีผลทันที') %}
+<span class="badge fs-6 text-bg-{{ 'success' if state.approved else 'warning' }}">{{ state.label }}</span>
+<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('activities.detail', aid=act.id) }}">กลับกิจกรรม</a>
+{% if state.approved %}{{ m.export_buttons('activity_staff', {'activity_id': act.id}) }}{% endif %}
+{% endcall %}
+{% if req and req.status == 'RECONSIDER' %}<div class="alert alert-warning">ส่งกลับให้พิจารณาใหม่: {{ req.last_reject_reason }} — ผู้คัดกรองแก้ไขผลในหน้ากิจกรรมแล้วส่งใหม่</div>{% endif %}
+<div class="card mb-3"><table class="table table-sm mb-0">
+  <thead><tr><th>ตำแหน่ง</th><th>รหัสนักศึกษา</th><th>ชื่อ</th><th>ผล</th>{% if can('act.approve') and not state.approved %}<th></th>{% endif %}</tr></thead><tbody>
+  {% for s in rows %}{% set u = users[s.user_id] %}<tr class="{{ 'text-decoration-line-through text-secondary' if s.removed }}"><td class="small">{{ pos_map.get(s.activity_position_id, {}).get('name') }}</td><td>{{ u.student_code }}</td><td>{{ u|uname }}</td>
+    <td>{{ m.badge({'APPROVED':'PASS','RESERVE':'RESERVE','REJECTED':'FAIL'}[s.result]) }}</td>
+    {% if can('act.approve') and not state.approved %}<td><form method="post">{{ m.csrf() }}<input type="hidden" name="action" value="remove"><input type="hidden" name="staff_id" value="{{ s.id }}"><button class="btn btn-sm btn-outline-secondary">{{ 'คืนรายชื่อ' if s.removed else 'ถอดรายชื่อ' }}</button></form></td>{% endif %}</tr>
+  {% endfor %}</tbody></table></div>
+{% if can('act.approve') and not state.approved and req.status == 'PENDING' %}
+<div class="card" style="max-width:560px"><div class="card-body"><form method="post">{{ m.csrf() }}
+  <textarea class="form-control mb-2" name="reason" rows="2" placeholder="เหตุผล (บังคับเมื่อปฏิเสธ)"></textarea>
+  <button name="action" value="approve" class="btn btn-success" data-confirm="อนุมัติชุดผลนี้? มีผลทันที">อนุมัติ</button>
+  <button name="action" value="reject" class="btn btn-outline-danger">ปฏิเสธ</button></form></div></div>
+{% endif %}
+<div class="small text-secondary mt-3">{% for l in state.logs %}{{ l.approver_name }} {{ 'อนุมัติ' if l.decision == 'APPROVE' else 'ปฏิเสธ' }} {{ l.decided_at|thaidate }}{% if l.reason %} ({{ l.reason }}){% endif %}<br>{% endfor %}</div>
+{% endblock %}

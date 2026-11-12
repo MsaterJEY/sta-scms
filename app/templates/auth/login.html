@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}เข้าสู่ระบบ{% endblock %}
+{% block content %}
+<div class="card mx-auto" style="max-width:420px">
+  <div class="card-body p-4">
+    <h1 class="h4 mb-3 text-center">เข้าสู่ระบบ</h1>
+    <form method="post">
+      {{ m.csrf() }}
+      <div class="mb-3"><label class="form-label">รหัสนักศึกษา หรืออีเมล</label>
+        <input class="form-control" name="identifier" required autocomplete="username" inputmode="text"></div>
+      <div class="mb-3"><label class="form-label">รหัสผ่าน</label>
+        <input class="form-control" type="password" name="password" required autocomplete="current-password"></div>
+      <button class="btn btn-sta w-100">เข้าสู่ระบบ</button>
+    </form>
+    <div class="text-center small mt-3">ยังไม่มีบัญชี? <a href="{{ url_for('auth.register') }}">ลงทะเบียน</a></div>
+    <div class="text-center small text-secondary mt-2">ลืมรหัสผ่าน กรุณาติดต่อผู้ดูแลระบบสโมสร</div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}ให้คะแนนสัมภาษณ์{% endblock %}
+{% block content %}
+{% call m.page_header('ให้คะแนนสัมภาษณ์', applicant.student_code ~ ' ' ~ (applicant|uname)) %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('recruit.detail', rid=a.round_id) }}#score">กลับ</a>{% endcall %}
+<div class="row g-3">
+<div class="col-lg-5"><div class="card"><div class="card-body small">
+  <div class="fw-semibold mb-1">ตำแหน่งที่สมัคร</div><ol>{% for c in choices %}<li>{{ rp_map.get(c.round_position_id, {}).get('position', {}).get('name') }}</li>{% endfor %}</ol>
+  <div class="fw-semibold mb-1">เหตุผลที่สมัคร</div><div class="pre-wrap">{{ a.statement or '-' }}</div>
+</div></div></div>
+<div class="col-lg-7"><div class="card"><div class="card-body">
+  {% if locked %}<div class="alert alert-success small">ส่งคะแนนแล้ว (ล็อก แก้ไขไม่ได้)</div>{% endif %}
+  <form method="post">{{ m.csrf() }}
+    {% for c in crits %}
+    <div class="row align-items-center mb-2"><label class="col-8 small" for="c{{ c.id }}">{{ c.name }} <span class="text-secondary">(เต็ม {{ c.max_score|int }} · น้ำหนัก {{ c.weight }})</span></label>
+      <div class="col-4"><input class="form-control" type="number" step="0.5" min="0" max="{{ c.max_score }}" id="c{{ c.id }}" name="c_{{ c.id }}" value="{{ mine[c.id].score if c.id in mine else '' }}" {% if locked %}disabled{% endif %}></div></div>
+    {% endfor %}
+    {% if not locked %}
+    <div class="d-flex gap-2 mt-3"><button name="action" value="draft" class="btn btn-outline-secondary">บันทึกร่าง</button>
+      <button name="action" value="submit" class="btn btn-sta" data-confirm="ส่งคะแนนแล้วจะแก้ไขไม่ได้ ยืนยัน?">ส่งคะแนน (ล็อก)</button></div>{% endif %}
+  </form>
+</div></div></div></div>
+{% endblock %}

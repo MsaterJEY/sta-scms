@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}ลงทะเบียน{% endblock %}
+{% block content %}
+<div class="card mx-auto" style="max-width:640px">
+  <div class="card-body p-4">
+    <h1 class="h4 mb-3">ลงทะเบียนเข้าใช้งาน</h1>
+    <form method="post" autocomplete="on">
+      {{ m.csrf() }}
+      <div class="mb-3">
+        <div class="btn-group w-100" role="group">
+          <input type="radio" class="btn-check" name="mode" id="m1" value="student" {% if form.get('mode','student') == 'student' %}checked{% endif %}>
+          <label class="btn btn-outline-success" for="m1">นักศึกษา มรย.</label>
+          {% if allow_external %}
+          <input type="radio" class="btn-check" name="mode" id="m2" value="external" {% if form.get('mode') == 'external' %}checked{% endif %}>
+          <label class="btn btn-outline-success" for="m2">บุคคลภายนอก</label>
+          {% endif %}
+        </div>
+      </div>
+      <div class="mb-3" id="codeBox">
+        <label class="form-label">รหัสนักศึกษา (9 หลัก)</label>
+        <input class="form-control" id="student_code" name="student_code" inputmode="numeric" maxlength="9" pattern="\d{9}" value="{{ form.get('student_code','') }}">
+        <div id="code_info" class="form-text">ระบบจะแยกสาขาและชั้นปีให้อัตโนมัติ</div>
+      </div>
+      <div class="row g-3">
+        <div class="col-md-6"><label class="form-label">ชื่อ</label><input class="form-control" name="first_name" required value="{{ form.get('first_name','') }}"></div>
+        <div class="col-md-6"><label class="form-label">นามสกุล</label><input class="form-control" name="last_name" required value="{{ form.get('last_name','') }}"></div>
+        <div class="col-md-6"><label class="form-label">อีเมล</label><input class="form-control" type="email" name="email" required value="{{ form.get('email','') }}" autocomplete="email"></div>
+        <div class="col-md-6"><label class="form-label">เบอร์โทร</label><input class="form-control" name="phone" inputmode="tel" value="{{ form.get('phone','') }}"></div>
+        <div class="col-md-6"><label class="form-label">LINE ID (ไม่บังคับ)</label><input class="form-control" name="line_id" value="{{ form.get('line_id','') }}"></div>
+        <div class="col-md-6"></div>
+        <div class="col-md-6"><label class="form-label">รหัสผ่าน (อย่างน้อย 8 ตัว)</label><input class="form-control" type="password" name="password" required minlength="8" autocomplete="new-password"></div>
+        <div class="col-md-6"><label class="form-label">ยืนยันรหัสผ่าน</label><input class="form-control" type="password" name="password2" required minlength="8" autocomplete="new-password"></div>
+      </div>
+      <div class="alert alert-light border small mt-3 mb-2">
+        <strong>การคุ้มครองข้อมูลส่วนบุคคล (PDPA)</strong><br>
+        สโมสรนักศึกษาจะเก็บรหัสนักศึกษา ชื่อ สาขา ชั้นปี อีเมล เบอร์โทร และ LINE ID เพื่อใช้ยืนยันตัวตน จัดกลุ่มสิทธิ์ และติดต่อเรื่องการสมัคร การยืมอุปกรณ์ และคำร้อง
+        เบอร์โทรและ LINE ID จะเห็นเฉพาะผู้ที่ต้องติดต่อเท่านั้น คุณขอดู แก้ไข หรือลบข้อมูลได้ผ่านผู้ดูแลระบบ
+      </div>
+      <div class="form-check mb-3">
+        <input class="form-check-input" type="checkbox" name="consent" id="consent" required>
+        <label class="form-check-label" for="consent">ข้าพเจ้ายินยอมให้เก็บและใช้ข้อมูลตามวัตถุประสงค์ข้างต้น</label>
+      </div>
+      <button class="btn btn-sta w-100">ลงทะเบียน</button>
+    </form>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.querySelectorAll('input[name=mode]').forEach(r => r.addEventListener('change', toggle));
+function toggle(){ const ext = document.getElementById('m2')?.checked; document.getElementById('codeBox').style.display = ext ? 'none' : ''; }
+toggle();
+</script>
+{% endblock %}

@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}เอกสาร{% endblock %}
+{% block content %}
+{% call m.page_header('ทะเบียนเอกสารสโมสร', 'เก็บลิงก์เอกสาร (เช่น Google Drive) แสดงตามระดับการเข้าถึงของคุณ') %}{{ m.export_buttons('documents', args.to_dict()) }}{% endcall %}
+<div class="row g-3">
+<div class="{{ 'col-lg-8' if can('doc.upload') and my_divs else 'col-12' }}">
+  <form class="row g-2 mb-3">
+    <div class="col-12 col-md-4"><input class="form-control" name="q" value="{{ args.get('q','') }}" placeholder="ค้นหาชื่อเอกสาร"></div>
+    <div class="col-6 col-md-3"><select class="form-select" name="doc_type"><option value="">ทุกประเภท</option>{% for k, l in DOC_TYPES.items() %}<option value="{{ k }}" {% if args.get('doc_type') == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+    <div class="col-6 col-md-3"><select class="form-select" name="activity_id"><option value="">ทุกกิจกรรม</option>{% for a in acts.values() %}<option value="{{ a.id }}" {% if args.get('activity_id') == a.id %}selected{% endif %}>{{ a.title }}</option>{% endfor %}</select></div>
+    <div class="col-12 col-md-2 d-grid"><button class="btn btn-sta">กรอง</button></div>
+  </form>
+  <div class="card"><div class="table-responsive"><table class="table table-sm mb-0">
+    <thead><tr><th>เอกสาร</th><th>ประเภท</th><th>กอง/กิจกรรม</th><th>ระดับ</th><th>ผู้บันทึก</th><th></th></tr></thead><tbody>
+    {% for d in docs %}<tr><td><a href="{{ url_for('documents.open_link', did=d.id) }}" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right me-1"></i>{{ d.title }}</a>
+        {% if d.note %}<div class="small text-secondary">{{ d.note }}</div>{% endif %}<div class="small text-secondary">{{ d.created_at|thaidate }}</div></td>
+      <td class="small">{{ DOC_TYPES.get(d.doc_type) }}</td><td class="small">{{ divs.get(d.division_id, {}).get('name', '-') }}{% if d.activity_id %}<br>{{ acts.get(d.activity_id, {}).get('title') }}{% endif %}</td>
+      <td class="small">{{ ACCESS.get(d.access_level) }}</td><td class="small">{{ users.get(d.created_by)|uname }}</td>
+      <td>{% if d.editable %}<form method="post" data-confirm="ลบรายการนี้? (ไฟล์ใน Google Drive ไม่ถูกลบ)">{{ m.csrf() }}<input type="hidden" name="action" value="delete"><input type="hidden" name="doc_id" value="{{ d.id }}"><button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button></form>{% endif %}</td></tr>
+    {% else %}<tr><td colspan="6">{{ m.empty() }}</td></tr>{% endfor %}</tbody></table></div></div>
+</div>
+{% if can('doc.upload') and my_divs %}
+<div class="col-lg-4"><div class="card"><div class="card-header">เพิ่มลิงก์เอกสาร</div><div class="card-body">
+  <form method="post">{{ m.csrf() }}<input type="hidden" name="action" value="add">
+    <input class="form-control mb-2" name="title" placeholder="ชื่อเอกสาร" required>
+    <input class="form-control mb-1" type="url" name="url" placeholder="https://drive.google.com/..." pattern="https://.*" required>
+    <div class="form-text mb-2">ตั้งค่าการแชร์ใน Google Drive ให้ผู้ที่ควรเห็นเปิดได้ ระบบไม่เก็บไฟล์</div>
+    <select class="form-select mb-2" name="doc_type">{% for k, l in DOC_TYPES.items() %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select>
+    <select class="form-select mb-2" name="division_id">{% for d in divs.values() if d.id in my_divs %}<option value="{{ d.id }}">{{ d.name }}</option>{% endfor %}</select>
+    <select class="form-select mb-2" name="activity_id"><option value="">- ไม่ผูกกิจกรรม -</option>{% for a in acts.values() if a.division_id in my_divs %}<option value="{{ a.id }}">{{ a.title }}</option>{% endfor %}</select>
+    <select class="form-select mb-2" name="access_level">{% for k, l in ACCESS.items() %}<option value="{{ k }}" {% if k == 'DIVISION' %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+    <input class="form-control mb-3" name="note" placeholder="หมายเหตุ (ไม่บังคับ)">
+    <button class="btn btn-sta">บันทึก</button></form></div></div></div>
+{% endif %}
+</div>
+{% endblock %}

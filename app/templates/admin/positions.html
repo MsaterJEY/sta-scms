@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}กองและตำแหน่ง{% endblock %}
+{% block content %}
+{% call m.page_header('กองและตำแหน่ง', 'ตำแหน่ง locked แก้บทบาท (สิทธิ์) ไม่ได้ แก้ได้เฉพาะชื่อ') %}{% endcall %}
+<div class="row g-3">
+<div class="col-lg-8"><div class="card"><div class="table-responsive"><table class="table table-sm mb-0">
+  <thead><tr><th>รหัส</th><th>ชื่อ</th><th>ระดับ</th><th>กอง</th><th>บทบาท</th><th></th></tr></thead><tbody>
+  {% for p in pos %}<tr><td class="small">{{ p.code }}</td><td>{{ p.name }}{% if p.locked_required %} <i class="bi bi-lock-fill text-secondary"></i>{% endif %}</td><td class="small">{{ p.level }}</td><td class="small">{{ p.division_id or '-' }}</td>
+    <td class="small">{{ p.roles|join(', ') }}</td><td><a class="btn btn-sm btn-outline-secondary" href="?edit={{ p.id }}">แก้ไข</a></td></tr>{% endfor %}
+  </tbody></table></div></div></div>
+<div class="col-lg-4">
+  <div class="card mb-3"><div class="card-header">{{ 'แก้ไขตำแหน่ง' if edit else 'เพิ่มตำแหน่ง' }}</div><div class="card-body">
+    <form method="post">{{ m.csrf() }}<input type="hidden" name="action" value="position">
+      <input class="form-control mb-2" name="code" placeholder="รหัส (A-Z)" value="{{ edit.code if edit else '' }}" {% if edit %}readonly{% endif %} required>
+      <input class="form-control mb-2" name="name" placeholder="ชื่อตำแหน่ง" value="{{ edit.name if edit else '' }}" required>
+      <select class="form-select mb-2" name="level">{% for l in ['BOARD','COMMITTEE','SUBCOMMITTEE','STAFF'] %}<option {% if edit and edit.level == l %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+      <select class="form-select mb-2" name="division_id"><option value="">- ไม่สังกัดกอง -</option>{% for d in divs %}<option value="{{ d.id }}" {% if edit and edit.division_id == d.id %}selected{% endif %}>{{ d.name }}</option>{% endfor %}</select>
+      <div class="small mb-1">บทบาท (กำหนดสิทธิ์){% if edit and edit.locked_required %} — <span class="text-danger">locked</span>{% endif %}</div>
+      <div class="mb-2" style="columns:2">{% for code, label in role_labels.items() if code not in ('SYS_ADMIN','STUDENT') %}
+        <div class="form-check small"><input class="form-check-input" type="checkbox" name="roles" value="{{ code }}" id="r{{ code }}" {% if edit and code in edit.roles %}checked{% endif %} {% if edit and edit.locked_required %}disabled{% endif %}><label class="form-check-label" for="r{{ code }}">{{ label }}</label></div>{% endfor %}</div>
+      <div class="form-check mb-3"><input class="form-check-input" type="checkbox" name="single_holder" id="sh" {% if edit and edit.single_holder %}checked{% endif %}><label class="form-check-label" for="sh">มีผู้ถือได้คนเดียวต่อปี</label></div>
+      <button class="btn btn-sta">บันทึก</button>{% if edit %} <a href="{{ url_for('admin.positions') }}" class="btn btn-link">ยกเลิก</a>{% endif %}
+    </form></div></div>
+  <div class="card"><div class="card-header">กอง</div><ul class="list-group list-group-flush">
+    {% for d in divs %}<li class="list-group-item small">{{ d.code }} — {{ d.name }}</li>{% endfor %}</ul>
+    <div class="card-body"><form method="post" class="d-flex gap-2">{{ m.csrf() }}<input type="hidden" name="action" value="division">
+      <input class="form-control form-control-sm" name="code" placeholder="รหัส" required><input class="form-control form-control-sm" name="name" placeholder="ชื่อกอง" required><button class="btn btn-sm btn-sta">เพิ่ม</button></form></div></div>
+</div></div>
+{% endblock %}

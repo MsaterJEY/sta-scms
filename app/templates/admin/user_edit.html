@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}แก้ไขผู้ใช้{% endblock %}
+{% block content %}
+{% call m.page_header('แก้ไขผู้ใช้: ' ~ (u|uname), u.student_code or u.email) %}<a href="{{ url_for('admin.users') }}" class="btn btn-sm btn-outline-secondary">กลับ</a>{% endcall %}
+<div class="row g-3">
+<div class="col-lg-7"><div class="card"><div class="card-body">
+<form method="post">{{ m.csrf() }}
+  <div class="row g-3">
+    <div class="col-md-6"><label class="form-label">ชื่อ</label><input class="form-control" name="first_name" value="{{ u.first_name or '' }}"></div>
+    <div class="col-md-6"><label class="form-label">นามสกุล</label><input class="form-control" name="last_name" value="{{ u.last_name or '' }}"></div>
+    <div class="col-md-6"><label class="form-label">ประเภทผู้ใช้</label><select class="form-select" name="account_type">
+      {% for t in ['SCI','OTHER_MRU','EXTERNAL'] %}<option {% if u.account_type == t %}selected{% endif %}>{{ t }}</option>{% endfor %}</select></div>
+    <div class="col-md-6"><label class="form-label">สถานะบัญชี</label><select class="form-select" name="status">
+      {% for t in ['ACTIVE','SUSPENDED'] %}<option value="{{ t }}" {% if u.status == t %}selected{% endif %}>{{ STATUS[t][0] }}</option>{% endfor %}</select></div>
+    <div class="col-md-6"><label class="form-label">สาขา (แก้ด้วยมือ = MANUAL)</label><select class="form-select" name="program_code"><option value="">-</option>
+      {% for p in programs %}<option value="{{ p.id }}" {% if u.program_code == p.id %}selected{% endif %}>{{ p.id }} {{ p.name_th }}</option>{% endfor %}</select>
+      <div class="form-text">ที่มา: {{ u.program_source or '-' }} · รหัสในรหัสนักศึกษา: {{ u.student_code[4:6] if u.student_code else '-' }}</div></div>
+    <div class="col-md-3"><label class="form-label">ชั้นปี</label><input class="form-control" type="number" name="year_level" value="{{ u.year_level or '' }}"></div>
+    <div class="col-md-3"><label class="form-label">สถานะนักศึกษา</label><select class="form-select" name="student_status">
+      {% for k, v in [('STUDYING','กำลังศึกษา'),('GRADUATED','สำเร็จการศึกษา'),('RESIGNED','ลาออก'),('SUSPENDED','พักการเรียน')] %}<option value="{{ k }}" {% if u.student_status == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></div>
+    <div class="col-12 form-check ms-2"><input class="form-check-input" type="checkbox" name="sys_admin" id="sa" {% if 'SYS_ADMIN' in (u.system_roles or []) %}checked{% endif %}><label class="form-check-label" for="sa">ผู้ดูแลระบบ (SYS_ADMIN) — ไม่มีสิทธิ์ locked ของตำแหน่งใด</label></div>
+  </div>
+  <button class="btn btn-sta mt-3">บันทึก (ล้างคิวรอตรวจ)</button>
+</form></div></div></div>
+<div class="col-lg-5"><div class="card"><div class="card-header">ประวัติตำแหน่ง</div><ul class="list-group list-group-flush">
+  {% for h in holds|sort(attribute='academic_year', reverse=True) %}<li class="list-group-item d-flex justify-content-between"><span>{{ positions.get(h.position_id, {}).get('name') }} · {{ h.academic_year }}</span>{{ m.badge(h.status) }}</li>
+  {% else %}<li class="list-group-item small text-secondary">-</li>{% endfor %}</ul>
+  <div class="card-body small text-secondary">เพิ่ม/สิ้นสุดตำแหน่งที่หน้า <a href="{{ url_for('admin.holders') }}">ผู้ถือตำแหน่งตามวาระ</a></div></div></div>
+</div>
+{% endblock %}

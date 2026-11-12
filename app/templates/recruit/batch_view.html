@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}ชุดผลคัดเลือก{% endblock %}
+{% block content %}
+{% call m.page_header('ชุดผลคัดเลือก: ' ~ r.title, 'โหมด ALL — ต้องอนุมัติครบทั้งอุปนายกและเลขาฝ่ายบริหารฯ') %}
+<span class="badge fs-6 text-bg-{{ 'success' if state.approved else 'warning' }}">{{ state.label }}</span>
+{% if state.approved %}{{ m.export_buttons('recruit_results', {'batch_id': batch.id}) }}{% endif %}
+{% endcall %}
+{% if req and req.status == 'RECONSIDER' %}<div class="alert alert-warning">ถูกส่งกลับให้พิจารณาใหม่: {{ req.last_reject_reason }}
+  {% if can('rec.manage') %}<a class="btn btn-sm btn-sta ms-2" href="{{ url_for('recruit.batch_form', rid=r.id, bid=batch.id) }}">แก้ไขและส่งใหม่</a>{% endif %}</div>{% endif %}
+
+<div class="card mb-3"><div class="table-responsive"><table class="table table-sm mb-0">
+  <thead><tr><th>รหัสนักศึกษา</th><th>ชื่อ</th><th>ตำแหน่ง</th><th>ผล</th><th>คะแนนเฉลี่ย</th>{% for sid, name in scorers.items() %}<th class="small">{{ name }}</th>{% endfor %}<th>ยืนยันสิทธิ์</th>{% if can('rec.approve') and not state.approved %}<th></th>{% endif %}</tr></thead><tbody>
+  {% for x in rows %}{% set u = users[x.user_id] %}
+  <tr class="{{ 'text-decoration-line-through text-secondary' if x.removed }}"><td>{{ u.student_code }}</td><td>{{ u|uname }}</td>
+    <td class="small">{{ rp_map.get(x.round_position_id, {}).get('position', {}).get('name', '-') }}</td><td>{{ m.badge(x.result) }}</td>
+    <td>{{ x.avg_score if x.avg_score is not none else '-' }}</td>
+    {% for sid in scorers %}<td class="small">{{ summary.get(x.application_id, {}).get('by_scorer', {}).get(sid, '-') }}</td>{% endfor %}
+    <td>{{ m.badge(x.confirm_status) if x.confirm_status else '' }}</td>
+    {% if can('rec.approve') and not state.approved %}<td><form method="post">{{ m.csrf() }}<input type="hidden" name="action" value="remove"><input type="hidden" name="result_id" value="{{ x.id }}"><button class="btn btn-sm btn-outline-secondary">{{ 'คืนรายชื่อ' if x.removed else 'ถอดรายชื่อ' }}</button></form></td>{% endif %}</tr>
+  {% endfor %}</tbody></table></div></div>
+
+<div class="row g-3">
+  <div class="col-lg-6"><div class="card"><div class="card-header">บันทึกการอนุมัติ</div><ul class="list-group list-group-flush small">
+    {% for l in state.logs %}<li class="list-group-item">รอบ {{ l.cycle }} · {{ l.approver_name }} ({{ ROLE_LABELS.get(l.role) }}) · <strong class="{{ 'text-success' if l.decision == 'APPROVE' else 'text-danger' }}">{{ 'อนุมัติ' if l.decision == 'APPROVE' else 'ปฏิเสธ' }}</strong>{% if l.reason %} — {{ l.reason }}{% endif %} · {{ l.decided_at|thaidate }}</li>
+    {% else %}<li class="list-group-item text-secondary">ยังไม่มี</li>{% endfor %}</ul></div></div>
+  <div class="col-lg-6">
+    {% if can('rec.approve') and not state.approved and req.status == 'PENDING' %}
+    <div class="card"><div class="card-header">พิจารณา</div><div class="card-body">
+      <form method="post">{{ m.csrf() }}
+        <textarea class="form-control mb-2" name="reason" rows="2" placeholder="เหตุผล (บังคับเมื่อปฏิเสธ)"></textarea>
+        <div class="d-flex gap-2"><button name="action" value="approve" class="btn btn-success" data-confirm="อนุมัติชุดผลคัดเลือกนี้?">อนุมัติ</button>
+          <button name="action" value="reject" class="btn btn-outline-danger">ปฏิเสธ (ส่งกลับ)</button></div></form></div></div>
+    {% endif %}
+    {% if state.approved and can('rec.manage') %}
+    <div class="card"><div class="card-body"><form method="post">{{ m.csrf() }}<input type="hidden" name="action" value="announce">
+      <button class="btn btn-sta">สร้างร่างประกาศผลส่งฝ่ายประชาสัมพันธ์</button></form></div></div>{% endif %}
+  </div>
+</div>
+{% endblock %}

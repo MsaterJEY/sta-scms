@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}{{ a.title }}{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb"><ol class="breadcrumb small">
+  <li class="breadcrumb-item"><a href="{{ url_for('public.news') }}">ข่าวประกาศ</a></li>
+  <li class="breadcrumb-item active">{{ cats.get(a.category_id, {}).get('name', '') }}</li></ol></nav>
+<article class="card mx-auto" style="max-width: 820px">
+  {% if a.cover_path %}<img class="news-cover" src="{{ url_for('announcements.cover', aid=a.id) }}" alt="">{% endif %}
+  <div class="card-body p-4">
+    <h1 class="h3">{{ a.title }}</h1>
+    <div class="text-secondary small mb-3">เผยแพร่ {{ a.publish_at|thaidate }}</div>
+    <div class="pre-wrap">{{ a.body }}</div>
+    <hr>
+    <button class="btn btn-sm btn-outline-secondary" onclick="navigator.clipboard.writeText(location.href).then(()=>appToast('คัดลอกลิงก์แล้ว'))">
+      <i class="bi bi-link-45deg"></i> คัดลอกลิงก์</button>
+  </div>
+</article>
+{% endblock %}

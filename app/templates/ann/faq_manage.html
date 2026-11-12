@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}จัดการ FAQ{% endblock %}
+{% block content %}
+{% call m.page_header('จัดการ FAQ', 'เลขาประจำกองทุกกองและเลขานุการนายกแก้ได้ทุกหัวข้อ') %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('public.faq') }}" target="_blank">ดูหน้าสาธารณะ</a>{% endcall %}
+{% set catmap = {} %}{% for c in cats %}{% set _ = catmap.update({c.id: c.name}) %}{% endfor %}
+<div class="row g-3">
+<div class="col-lg-7"><div class="card"><ul class="list-group list-group-flush">
+  {% for f in faqs %}<li class="list-group-item d-flex justify-content-between gap-2"><span><span class="badge text-bg-light">{{ catmap.get(f.category_id) }}</span> {{ f.question }} {% if f.status != 'PUBLISHED' %}{{ m.badge('DRAFT') }}{% endif %}</span>
+    <span class="text-nowrap"><a class="btn btn-sm btn-outline-secondary" href="?edit={{ f.id }}">แก้ไข</a>
+      <form method="post" class="d-inline" data-confirm="ลบคำถามนี้?">{{ m.csrf() }}<input type="hidden" name="action" value="delete"><input type="hidden" name="faq_id" value="{{ f.id }}"><button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button></form></span></li>
+  {% else %}<li class="list-group-item">{{ m.empty() }}</li>{% endfor %}</ul></div></div>
+<div class="col-lg-5">
+  <div class="card mb-3"><div class="card-header">{{ 'แก้ไขคำถาม' if edit else 'เพิ่มคำถาม' }}</div><div class="card-body">
+    <form method="post">{{ m.csrf() }}<input type="hidden" name="action" value="save">{% if edit %}<input type="hidden" name="faq_id" value="{{ edit.id }}">{% endif %}
+      <select class="form-select mb-2" name="category_id">{% for c in cats %}<option value="{{ c.id }}" {% if edit and edit.category_id == c.id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}</select>
+      <input class="form-control mb-2" name="question" placeholder="คำถาม" required value="{{ edit.question if edit else '' }}">
+      <textarea class="form-control mb-2" name="answer" rows="5" placeholder="คำตอบ" required>{{ edit.answer if edit else '' }}</textarea>
+      <div class="row g-2 mb-2"><div class="col-6"><input class="form-control" type="number" name="order" placeholder="ลำดับ" value="{{ edit.order if edit else 0 }}"></div>
+        <div class="col-6 form-check d-flex align-items-center gap-2 ps-4"><input class="form-check-input" type="checkbox" name="published" id="pub" {% if not edit or edit.status == 'PUBLISHED' %}checked{% endif %}><label class="form-check-label" for="pub">เผยแพร่</label></div></div>
+      <button class="btn btn-sta">บันทึก</button>{% if edit %} <a class="btn btn-link" href="{{ url_for('announcements.faq_manage') }}">ยกเลิก</a>{% endif %}</form></div></div>
+  <div class="card"><div class="card-body"><form method="post" class="d-flex gap-2">{{ m.csrf() }}<input type="hidden" name="action" value="category">
+    <input class="form-control form-control-sm" name="name" placeholder="หมวดใหม่"><button class="btn btn-sm btn-outline-success">เพิ่มหมวด</button></form></div></div>
+</div></div>
+{% endblock %}

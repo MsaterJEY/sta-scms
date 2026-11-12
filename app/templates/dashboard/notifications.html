@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}แจ้งเตือน{% endblock %}
+{% block content %}
+{% call m.page_header('การแจ้งเตือน') %}
+<form method="post">{{ m.csrf() }}<button class="btn btn-sm btn-outline-secondary">อ่านทั้งหมด</button></form>
+{% endcall %}
+<div class="card"><ul class="list-group list-group-flush">
+  {% for n in items %}
+  <a class="list-group-item list-group-item-action {% if not n.is_read %}bg-light fw-semibold{% endif %}" href="{{ url_for('dashboard.open_notification', nid=n.id) }}">
+    {{ n.title }}{% if n.body %}<div class="small fw-normal">{{ n.body }}</div>{% endif %}
+    <div class="small text-secondary fw-normal">{{ n.created_at|thaidate }}</div></a>
+  {% else %}<li class="list-group-item">{{ m.empty('ไม่มีแจ้งเตือน') }}</li>{% endfor %}
+</ul></div>
+{% endblock %}

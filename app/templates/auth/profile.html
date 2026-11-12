@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}ข้อมูลของฉัน{% endblock %}
+{% block content %}
+{% call m.page_header('ข้อมูลของฉัน') %}{% endcall %}
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card mb-3"><div class="card-header">ข้อมูลบัญชี</div>
+      <div class="card-body">
+        <dl class="row mb-0">
+          <dt class="col-5">ชื่อ-นามสกุล</dt><dd class="col-7">{{ u|uname }}</dd>
+          <dt class="col-5">รหัสนักศึกษา</dt><dd class="col-7">{{ u.student_code or '-' }}</dd>
+          <dt class="col-5">ประเภทผู้ใช้</dt><dd class="col-7">{{ {'SCI':'นักศึกษาคณะวิทยาศาสตร์ฯ','OTHER_MRU':'นักศึกษา มรย. ต่างคณะ','EXTERNAL':'บุคคลภายนอก'}[u.account_type] }}</dd>
+          <dt class="col-5">สาขา</dt><dd class="col-7">{{ program.name_th if program else '-' }}{% if u.needs_review %} <span class="badge text-bg-warning">รอตรวจ</span>{% endif %}</dd>
+          <dt class="col-5">ชั้นปี</dt><dd class="col-7">{{ u.year_level or '-' }}</dd>
+          <dt class="col-5">อีเมล</dt><dd class="col-7">{{ u.email }}</dd>
+          <dt class="col-5">บทบาทปัจจุบัน</dt><dd class="col-7">{% for r in my_roles|sort %}<span class="badge text-bg-light me-1">{{ ROLE_LABELS.get(r, r) }}</span>{% else %}-{% endfor %}</dd>
+        </dl>
+      </div></div>
+    <div class="card"><div class="card-header">ประวัติตำแหน่ง</div>
+      <ul class="list-group list-group-flush">
+        {% for h in holdings|sort(attribute='academic_year', reverse=True) %}
+        <li class="list-group-item d-flex justify-content-between"><span>{{ positions.get(h.position_id, {}).get('name') }} <span class="text-secondary small">ปี {{ h.academic_year }}</span></span>{{ m.badge(h.status) }}</li>
+        {% else %}<li class="list-group-item text-secondary small">ยังไม่มี</li>{% endfor %}
+      </ul></div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card mb-3"><div class="card-header">ช่องทางติดต่อ</div><div class="card-body">
+      <form method="post">{{ m.csrf() }}<input type="hidden" name="action" value="contact">
+        <div class="mb-2"><label class="form-label">เบอร์โทร</label><input class="form-control" name="phone" value="{{ u.phone or '' }}"></div>
+        <div class="mb-3"><label class="form-label">LINE ID</label><input class="form-control" name="line_id" value="{{ u.line_id or '' }}"></div>
+        <button class="btn btn-sta">บันทึก</button></form></div></div>
+    <div class="card mb-3"><div class="card-header">เปลี่ยนรหัสผ่าน</div><div class="card-body">
+      <form method="post">{{ m.csrf() }}<input type="hidden" name="action" value="password">
+        <div class="mb-2"><input class="form-control" type="password" name="old_password" placeholder="รหัสผ่านเดิม" required autocomplete="current-password"></div>
+        <div class="mb-3"><input class="form-control" type="password" name="new_password" placeholder="รหัสผ่านใหม่ (8 ตัวขึ้นไป)" minlength="8" required autocomplete="new-password"></div>
+        <button class="btn btn-outline-secondary">เปลี่ยนรหัสผ่าน</button></form></div></div>
+    <div class="card"><div class="card-header">ความยินยอมที่ให้ไว้</div>
+      <ul class="list-group list-group-flush small">
+        {% for c in consents|sort(attribute='granted_at', reverse=True) %}
+        <li class="list-group-item">{{ c.purpose }} · {{ c.granted_at|thaidate }}{% if c.expires_at %} · หมดอายุ {{ c.expires_at|thaiday }}{% endif %}</li>
+        {% endfor %}
+      </ul></div>
+  </div>
+</div>
+{% endblock %}

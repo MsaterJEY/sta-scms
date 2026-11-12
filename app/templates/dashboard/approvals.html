@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}รายการรออนุมัติ{% endblock %}
+{% block content %}
+{% call m.page_header('รายการรออนุมัติ', 'ผลคัดเลือกกรรมการ (ต้องครบทั้งอุปนายกและเลขาฝ่ายบริหารฯ) · ผลคัดเลือกทีมงาน (คนใดคนหนึ่ง) · คำขอยืมของหัวหน้าฝ่ายอุปกรณ์') %}{% endcall %}
+<div class="card"><div class="table-responsive"><table class="table mb-0">
+  <thead><tr><th>รายการ</th><th>ประเภท</th><th>สถานะ</th><th>ส่งเมื่อ</th><th></th></tr></thead>
+  <tbody>
+  {% for x in items %}
+  <tr>
+    <td>{{ x.req.title }}</td>
+    <td class="small">{{ {'REC_FINAL':'กรรมการ (ALL)','STAFF_FINAL':'ทีมงาน (ANY)','EQP_SELF':'ยืมอุปกรณ์'}.get(x.req.flow_code) }}</td>
+    <td><span class="badge text-bg-warning">{{ x.state.label }}</span>{% if x.mine_done %} <span class="badge text-bg-success">คุณอนุมัติแล้ว</span>{% endif %}</td>
+    <td class="small">{{ x.req.created_at|thaidate }}</td>
+    <td><a class="btn btn-sm btn-sta" href="{{ x.req.link }}">พิจารณา</a></td>
+  </tr>
+  {% else %}<tr><td colspan="5">{{ m.empty('ไม่มีรายการรออนุมัติ') }}</td></tr>{% endfor %}
+  </tbody></table></div></div>
+{% endblock %}

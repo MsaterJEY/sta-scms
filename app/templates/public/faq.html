@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}คำถามที่พบบ่อย{% endblock %}
+{% block content %}
+{% call m.page_header('คำถามที่พบบ่อย (FAQ)') %}{% endcall %}
+<form class="mb-3" style="max-width:520px"><div class="input-group">
+  <input class="form-control" name="q" value="{{ q }}" placeholder="ค้นหาคำถาม"><button class="btn btn-sta">ค้นหา</button></div></form>
+{% for c in cats if grouped[c.id] %}
+<h2 class="h6 mt-4 text-sta">{{ c.name }}</h2>
+<div class="accordion" id="faq{{ loop.index }}">
+  {% for f in grouped[c.id]|sort(attribute='order') %}
+  <div class="accordion-item">
+    <h3 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#q{{ f.id }}">{{ f.question }}</button></h3>
+    <div id="q{{ f.id }}" class="accordion-collapse collapse"><div class="accordion-body pre-wrap">{{ f.answer }}</div></div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}{{ m.empty('ยังไม่มีคำถาม') }}{% endfor %}
+<div class="mt-4 small text-secondary">ไม่พบคำตอบ? <a href="{{ url_for('tickets.new') }}">ส่งคำร้องถึงสโมสร</a></div>
+{% endblock %}

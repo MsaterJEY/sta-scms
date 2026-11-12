@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}{{ mo.name }}{% endblock %}
+{% block content %}
+{% call m.page_header(mo.code ~ ' ' ~ mo.name, ('ติดตามรายชิ้น' if mo.is_serialized else 'นับจำนวน') ~ ' · ใช้งานได้ ' ~ cap) %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('equipment.manage') }}">กลับ</a>{% endcall %}
+<div class="row g-3">
+<div class="col-lg-8">
+  {% if mo.is_serialized %}
+  <div class="card mb-3"><div class="card-header">รายชิ้น ({{ units|length }})</div><div class="table-responsive"><table class="table table-sm mb-0">
+    <thead><tr><th>รหัสครุภัณฑ์</th><th>สภาพ</th><th>สถานะ</th><th>ที่เก็บ</th><th>QR</th></tr></thead><tbody>
+    {% for u in units %}<tr><td><code>{{ u.asset_tag }}</code></td><td class="small">{{ u.condition }}</td><td>{{ m.badge(u.status) }}</td><td class="small">{{ u.location }}</td>
+      <td><button class="btn btn-sm btn-outline-secondary" type="button" onclick="showQR('{{ u.asset_tag }}')"><i class="bi bi-qr-code"></i></button></td></tr>
+    {% else %}<tr><td colspan="5">{{ m.empty() }}</td></tr>{% endfor %}</tbody></table></div>
+    <div class="card-body border-top"><form method="post" class="row g-2">{{ m.csrf() }}<input type="hidden" name="action" value="add_unit">
+      <div class="col-md-4"><input class="form-control form-control-sm" name="asset_tag" placeholder="รหัสครุภัณฑ์ (ว่าง = สร้างให้)"></div>
+      <div class="col-md-3"><input class="form-control form-control-sm" name="condition" placeholder="สภาพ" value="ดี"></div>
+      <div class="col-md-3"><input class="form-control form-control-sm" type="date" name="acquired_at" title="วันที่ได้มา"></div>
+      <div class="col-md-2 d-grid"><button class="btn btn-sm btn-sta">+ รายชิ้น</button></div></form></div></div>
+  {% endif %}
+  <div class="card"><div class="card-header">ประวัติการเคลื่อนไหว (เพิ่มอย่างเดียว)</div><ul class="list-group list-group-flush small">
+    {% for t in hist %}<li class="list-group-item">{{ t.occurred_at|thaidate }} · {{ t.type }} × {{ t.qty }}{% if t.condition_after %} · {{ t.condition_after }}{% endif %} · <a href="{{ url_for('equipment.request_detail', rid=t.request_id) }}">คำขอ</a></li>
+    {% else %}<li class="list-group-item text-secondary">ยังไม่มี</li>{% endfor %}</ul></div>
+</div>
+<div class="col-lg-4">
+  <div class="card mb-3"><div class="card-header">แก้ไขข้อมูล</div><div class="card-body">{% include "eqp/_model_form.html" %}</div></div>
+  <form method="post" data-confirm="ปิดการใช้งานอุปกรณ์นี้?">{{ m.csrf() }}<input type="hidden" name="action" value="delete"><button class="btn btn-sm btn-outline-danger w-100">ลบ/ปิดการใช้งาน (เฉพาะที่ยังไม่เคยถูกยืม)</button></form>
+</div></div>
+<div class="modal fade" id="qrModal" tabindex="-1"><div class="modal-dialog modal-sm modal-dialog-centered"><div class="modal-content"><div class="modal-body text-center"><div id="qrBox" class="d-inline-block"></div><div id="qrTag" class="mt-2 fw-semibold"></div></div></div></div></div>
+{% endblock %}
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+function showQR(tag){ const b = document.getElementById('qrBox'); b.innerHTML=''; new QRCode(b, {text: tag, width: 200, height: 200});
+  document.getElementById('qrTag').textContent = tag; bootstrap.Modal.getOrCreateInstance(document.getElementById('qrModal')).show(); }
+</script>
+{% endblock %}

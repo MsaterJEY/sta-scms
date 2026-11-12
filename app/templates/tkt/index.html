@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}คำร้อง/ร้องเรียน{% endblock %}
+{% block content %}
+{% call m.page_header('คำร้องและร้องเรียน') %}
+<form class="d-flex gap-1" action="{{ url_for('tickets.track') }}"><input class="form-control form-control-sm" name="code" placeholder="รหัสติดตาม"><button class="btn btn-sm btn-outline-secondary">ค้นหา</button></form>
+{% if can('tkt.handle') or can('tkt.view') or can('tkt.escalated') or can('report.view') %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('tickets.stats') }}">สถิติ</a>{% endif %}
+{% if me.account_type == 'SCI' %}<a class="btn btn-sm btn-sta" href="{{ url_for('tickets.new') }}"><i class="bi bi-plus"></i> ส่งคำร้อง</a>{% endif %}
+{% endcall %}
+{% if queue or can('tkt.handle') or can('tkt.view') %}
+<h2 class="h6">คิวคำร้อง</h2>
+<ul class="nav nav-pills mb-2 small">{% for k, l in [('', 'ทั้งหมด'), ('SUBMITTED','รอรับเรื่อง'), ('CLAIMED','รับเรื่องแล้ว'), ('IN_PROGRESS','กำลังดำเนินการ'), ('WAITING_INFO','รอข้อมูล'), ('ANSWERED','ตอบแล้ว'), ('CLOSED','ปิด')] %}
+  <li class="nav-item"><a class="nav-link {{ 'active' if (status or '') == k }}" href="?status={{ k }}">{{ l }}</a></li>{% endfor %}</ul>
+<div class="card mb-4"><div class="table-responsive"><table class="table table-sm table-hover mb-0">
+  <thead><tr><th>รหัส</th><th>หัวข้อ</th><th>ประเภท</th><th>ส่งเมื่อ</th><th>สถานะ</th><th>สิทธิ์</th></tr></thead><tbody>
+  {% for t in queue %}<tr><td><a href="{{ url_for('tickets.detail', tid=t.id) }}">{{ t.tracking_code }}</a></td><td>{{ t.title }}{% if t.sensitivity == 'RESTRICTED' %} <i class="bi bi-shield-lock text-danger" title="เรื่องจำกัด"></i>{% endif %}{% if t.routing_level != 'NORMAL' %} <span class="badge text-bg-dark">ส่งต่อ {{ t.routing_level }}</span>{% endif %}</td>
+    <td class="small">{{ cats.get(t.category_id, {}).get('name') }}</td><td class="small">{{ t.created_at|thaidate }}</td>
+    <td>{{ m.badge(t.status) }}{% if t.overdue %} <span class="badge text-bg-danger">เกิน SLA</span>{% endif %}</td><td class="small">{{ 'รับเรื่องได้' if t.level == 'handle' else 'ดูอย่างเดียว' }}</td></tr>
+  {% else %}<tr><td colspan="6">{{ m.empty() }}</td></tr>{% endfor %}</tbody></table></div></div>
+{% endif %}
+<h2 class="h6">คำร้องของฉัน</h2>
+<div class="card"><ul class="list-group list-group-flush">
+  {% for t in mine %}<a class="list-group-item list-group-item-action d-flex justify-content-between" href="{{ url_for('tickets.detail', tid=t.id) }}">
+    <span>{{ t.title }}<div class="small text-secondary">{{ t.tracking_code }} · {{ t.created_at|thaidate }}{% if t.is_anonymous %} · นิรนาม{% endif %}</div></span>{{ m.badge(t.status) }}</a>
+  {% else %}<li class="list-group-item">{{ m.empty('ยังไม่มีคำร้อง') }}</li>{% endfor %}</ul></div>
+{% endblock %}

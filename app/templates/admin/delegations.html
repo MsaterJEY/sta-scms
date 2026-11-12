@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}มอบสิทธิ์คัดกรอง{% endblock %}
+{% block content %}
+{% call m.page_header('มอบสิทธิ์คัดกรองทีมงานรายกิจกรรม', 'มอบให้หัวหน้าฝ่ายบุคลากร มีวันหมดอายุ ถอนได้ ไม่รวมสิทธิ์อนุมัติ') %}{% endcall %}
+<div class="card mb-3"><div class="card-body">
+  <form method="post" class="row g-2">{{ m.csrf() }}<input type="hidden" name="action" value="grant">
+    <div class="col-md-4"><select class="form-select" name="to_user_id" required>{% for h in heads %}<option value="{{ h.id }}">{{ h|uname }}</option>{% else %}<option value="">ยังไม่มีหัวหน้าฝ่ายบุคลากรในวาระ</option>{% endfor %}</select></div>
+    <div class="col-md-4"><select class="form-select" name="activity_id" required>{% for a in acts %}<option value="{{ a.id }}">{{ a.title }}</option>{% endfor %}</select></div>
+    <div class="col-md-2"><input class="form-control" type="datetime-local" name="expires_at" required title="หมดอายุ"></div>
+    <div class="col-md-2 d-grid"><button class="btn btn-sta">มอบสิทธิ์</button></div>
+  </form></div></div>
+<div class="card"><table class="table table-sm mb-0"><thead><tr><th>ผู้รับมอบ</th><th>กิจกรรม</th><th>ผู้มอบ</th><th>หมดอายุ</th><th>สถานะ</th><th></th></tr></thead><tbody>
+  {% for d in items %}<tr><td>{{ users.get(d.to_user_id)|uname }}</td><td>{{ d.scope_name }}</td><td class="small">{{ users.get(d.from_user_id)|uname }}</td><td class="small">{{ d.expires_at|thaidate }}</td>
+    <td>{% if d.active %}<span class="badge text-bg-success">ใช้งาน</span>{% elif d.revoked_at %}<span class="badge text-bg-secondary">ถอนแล้ว</span>{% else %}<span class="badge text-bg-secondary">หมดอายุ</span>{% endif %}</td>
+    <td>{% if d.active %}<form method="post">{{ m.csrf() }}<input type="hidden" name="action" value="revoke"><input type="hidden" name="delegation_id" value="{{ d.id }}"><button class="btn btn-sm btn-outline-danger">ถอน</button></form>{% endif %}</td></tr>
+  {% else %}<tr><td colspan="6">{{ m.empty() }}</td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}

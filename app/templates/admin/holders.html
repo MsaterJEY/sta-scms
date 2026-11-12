@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}ผู้ถือตำแหน่ง{% endblock %}
+{% block content %}
+{% call m.page_header('ผู้ถือตำแหน่งตามวาระ ปี ' ~ year, 'ตำแหน่งระดับบอร์ดลงข้อมูลตามคำสั่งแต่งตั้ง ไม่ผ่านการรับสมัครในระบบ') %}
+<form class="d-flex gap-2"><select class="form-select form-select-sm" name="year" onchange="this.form.submit()">
+  {% for y in years %}<option value="{{ y.id }}" {% if y.id|int == year %}selected{% endif %}>{{ y.id }}</option>{% endfor %}</select></form>
+{{ m.export_buttons('holders', {'year': year}) }}
+{% endcall %}
+{% if missing %}<div class="alert alert-warning small">ตำแหน่ง locked ที่ยังไม่มีผู้ถือ: {{ missing|map(attribute='name')|join(', ') }}</div>{% endif %}
+<div class="card mb-3"><div class="card-header">เพิ่มผู้ถือตำแหน่ง</div><div class="card-body">
+  <form method="post" class="row g-2">{{ m.csrf() }}<input type="hidden" name="action" value="add"><input type="hidden" name="year" value="{{ year }}">
+    <div class="col-md-4"><input class="form-control" name="identifier" placeholder="รหัสนักศึกษา หรืออีเมล" required></div>
+    <div class="col-md-4"><select class="form-select" name="position_id" required>
+      {% for p in pos_list %}<option value="{{ p.id }}">[{{ p.level }}] {{ p.name }}{% if p.single_holder %} (คนเดียว){% endif %}</option>{% endfor %}</select></div>
+    <div class="col-md-2"><input class="form-control" type="date" name="start_date" title="วันเริ่ม"></div>
+    <div class="col-md-2 d-grid"><button class="btn btn-sta">เพิ่ม</button></div>
+  </form></div></div>
+<div class="card"><div class="table-responsive"><table class="table table-sm mb-0">
+  <thead><tr><th>ตำแหน่ง</th><th>ระดับ</th><th>รหัสนักศึกษา</th><th>ชื่อ</th><th>เริ่ม</th><th>สถานะ</th><th></th></tr></thead><tbody>
+  {% for h in holders %}{% set p = positions.get(h.position_id, {}) %}{% set u = users.get(h.user_id, {}) %}
+  <tr><td>{{ p.name }}{% if p.locked_required %} <i class="bi bi-lock-fill text-secondary" title="locked"></i>{% endif %}</td><td class="small">{{ p.level }}</td>
+    <td>{{ u.student_code or '-' }}</td><td>{{ u|uname }}</td><td class="small">{{ h.start_date }}</td><td>{{ m.badge(h.status) }}</td>
+    <td>{% if h.status == 'ACTIVE' %}<form method="post" data-confirm="สิ้นสุดการถือตำแหน่งนี้?">{{ m.csrf() }}<input type="hidden" name="action" value="end"><input type="hidden" name="holder_id" value="{{ h.id }}"><input type="hidden" name="year" value="{{ year }}"><button class="btn btn-sm btn-outline-danger">สิ้นสุด</button></form>{% endif %}</td></tr>
+  {% else %}<tr><td colspan="7">{{ m.empty() }}</td></tr>{% endfor %}</tbody></table></div></div>
+{% endblock %}

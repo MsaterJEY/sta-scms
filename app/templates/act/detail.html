@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}{{ act.title }}{% endblock %}
+{% block content %}
+{% call m.page_header(act.title, division.name ~ ' · ' ~ (act.start_at|thaidate) ~ ' – ' ~ (act.end_at|thaidate) ~ ' · ' ~ (act.location or '')) %}
+{% if manage %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('activities.form', aid=act.id) }}">แก้ไข</a>{% endif %}
+{% endcall %}
+{% if act.description %}<div class="card mb-3"><div class="card-body pre-wrap small">{{ act.description }}</div></div>{% endif %}
+{% if conflicts %}<div class="alert alert-warning small">เวลากิจกรรมนี้ชนกับกิจกรรมที่คุณยืนยันเป็นทีมงานแล้ว: {{ conflicts|map(attribute='title')|join(', ') }}</div>{% endif %}
+
+{% if my_staff and my_staff.result == 'APPROVED' %}
+<div class="alert alert-success d-flex flex-wrap justify-content-between align-items-center gap-2">
+  <span>คุณผ่านการคัดเลือกเป็นทีมงาน {{ m.badge(my_staff.confirm_status) if my_staff.confirm_status else '' }}</span>
+  {% if not my_staff.confirm_status %}<form method="post" action="{{ url_for('activities.confirm', sid=my_staff.id) }}" class="d-flex gap-2">{{ m.csrf() }}
+    <button name="action" value="confirm" class="btn btn-sm btn-success">ยืนยันสิทธิ์</button>
+    <button name="action" value="decline" class="btn btn-sm btn-outline-danger" data-confirm="สละสิทธิ์?">สละสิทธิ์</button></form>{% endif %}
+</div>{% endif %}
+
+<div class="card mb-3" id="positions"><div class="card-header">ตำแหน่งทีมงาน</div>
+  <div class="table-responsive"><table class="table table-sm mb-0">
+  <thead><tr><th>ตำแหน่ง</th><th>จำนวน</th><th>สมัครได้</th><th>ช่วงรับสมัคร</th><th>สถานะ</th><th></th></tr></thead><tbody>
+  {% for p in positions %}
+  <tr><td>{{ p.name }}{% if p.requirements %}<div class="small text-secondary">{{ p.requirements }}</div>{% endif %}</td><td>{{ p.quota }}</td>
+    <td class="small">{{ (p.eligible_groups or [])|map('extract', GROUP_LABELS)|join(', ') }}</td>
+    <td class="small">{{ p.open_at|thaidate }} – {{ p.close_at|thaidate }}</td><td>{{ m.badge(p.status) }}</td>
+    <td class="text-nowrap">
+      {% if p.id in my_apps %}{{ m.badge(my_apps[p.id].status) }}
+      {% elif open[p.id] and elig[p.id][0] %}
+        <form method="post" action="{{ url_for('activities.apply', pid=p.id) }}" {% if conflicts %}data-confirm="เวลาชนกับกิจกรรมอื่นที่คุณยืนยันแล้ว ยังต้องการสมัคร?"{% endif %}>{{ m.csrf() }}<button class="btn btn-sm btn-sta">สมัคร</button></form>
+      {% elif open[p.id] %}<span class="small text-secondary">{{ elig[p.id][1] }}</span>{% endif %}
+      {% if manage %}<form method="post" action="{{ url_for('activities.position_status', pid=p.id) }}" class="d-inline">{{ m.csrf() }}
+        {% if p.status != 'OPEN' %}<button name="status" value="OPEN" class="btn btn-sm btn-outline-success">เปิดรับ</button>{% else %}<button name="status" value="CLOSED" class="btn btn-sm btn-outline-dark">ปิดรับ</button>{% endif %}</form>{% endif %}
+    </td></tr>
+  {% else %}<tr><td colspan="6">{{ m.empty('ยังไม่มีตำแหน่ง') }}</td></tr>{% endfor %}</tbody></table></div>
+  {% if manage %}<div class="card-body border-top">
+    <form method="post" action="{{ url_for('activities.save_position', aid=act.id) }}" class="row g-2">{{ m.csrf() }}
+      <div class="col-md-3"><input class="form-control form-control-sm" name="name" placeholder="ชื่อตำแหน่ง" required></div>
+      <div class="col-md-1"><input class="form-control form-control-sm" type="number" min="1" name="quota" placeholder="จำนวน" required></div>
+      <div class="col-md-2"><input class="form-control form-control-sm" type="datetime-local" name="open_at" title="เปิดรับ"></div>
+      <div class="col-md-2"><input class="form-control form-control-sm" type="datetime-local" name="close_at" title="ปิดรับ"></div>
+      <div class="col-md-2 small">{% for g, l in GROUP_LABELS.items() %}<div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" name="groups" value="{{ g }}" id="g{{ g }}" {% if g == 'STUDENT' %}checked{% endif %}><label class="form-check-label" for="g{{ g }}">{{ l[:9] }}</label></div>{% endfor %}</div>
+      <div class="col-md-2 d-grid"><button class="btn btn-sm btn-sta">+ เพิ่มตำแหน่ง</button></div>
+      <div class="col-12"><input class="form-control form-control-sm" name="requirements" placeholder="คุณสมบัติ (ถ้ามี)"></div>
+    </form></div>{% endif %}
+</div>
+
+{% if apps is defined %}
+<ul class="nav nav-tabs">
+  <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#apps" type="button">ผู้สมัคร ({{ apps|length }})</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#staff" type="button">ทีมงาน</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#sessions" type="button">เช็กชื่อ/ชั่วโมง</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#report" type="button">ผลดำเนินงาน</button></li>
+</ul>
+<div class="tab-content card border-top-0 rounded-top-0 mb-3">
+  <div class="tab-pane fade show active p-3" id="apps">
+    <div class="d-flex flex-wrap justify-content-between gap-2 mb-2">
+      <div class="small text-secondary">{% if screen %}คุณได้รับมอบหมายให้คัดกรองกิจกรรมนี้ เลือกผลแล้วกด "ส่งชุดผลเพื่ออนุมัติ"{% else %}การคัดกรองทำโดยหัวหน้าฝ่ายบุคลากรที่ได้รับมอบหมาย{% endif %}</div>
+      {% if manage or screen %}{{ m.export_buttons('activity_applicants', {'activity_id': act.id}) }}{% endif %}
+    </div>
+    <form method="post" action="{{ url_for('activities.create_batch', aid=act.id) }}">{{ m.csrf() }}
+    {% set rb = batches|selectattr('status', 'equalto', 'RECONSIDER')|first %}{% if rb %}<input type="hidden" name="batch_id" value="{{ rb.id }}">{% endif %}
+    <div class="table-responsive"><table class="table table-sm">
+      <thead><tr><th>ตำแหน่ง</th><th>รหัสนักศึกษา</th><th>ชื่อ</th><th>ชั้นปี</th><th>เวลาชน</th><th>สถานะ</th>{% if screen %}<th>คัดกรอง</th><th>ผลเสนอ</th>{% endif %}</tr></thead><tbody>
+      {% for a in apps %}{% set u = users[a.user_id] %}
+      <tr><td class="small">{{ pos_map.get(a.activity_position_id, {}).get('name') }}</td><td>{{ u.student_code }}</td><td>{{ u|uname }}</td><td>{{ u.year_level }}</td>
+        <td class="small text-warning">{{ (a.conflict_warning or [])|join(', ') }}</td><td>{{ m.badge(a.status) }}</td>
+        {% if screen %}<td class="text-nowrap">{% if a.status in ['SUBMITTED','SCREEN_PASS','SCREEN_FAIL'] %}
+          <button formaction="{{ url_for('activities.screen', app_id=a.id) }}" name="result" value="SCREEN_PASS" class="btn btn-sm btn-outline-success" title="ผ่าน"><i class="bi bi-check"></i></button>
+          <button formaction="{{ url_for('activities.screen', app_id=a.id) }}" name="result" value="SCREEN_FAIL" class="btn btn-sm btn-outline-danger" title="ไม่ผ่าน"><i class="bi bi-x"></i></button>{% endif %}</td>
+        <td>{% if a.status in ['SCREEN_PASS','SCREEN_FAIL','IN_BATCH'] %}<select class="form-select form-select-sm" name="res_{{ a.id }}"><option value="">-</option>
+          {% for k, l in [('APPROVED','ผ่าน'),('RESERVE','สำรอง'),('REJECTED','ไม่ผ่าน')] %}<option value="{{ k }}" {% if (a.status == 'SCREEN_PASS' and k == 'APPROVED') or (a.status == 'SCREEN_FAIL' and k == 'REJECTED') %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>{% endif %}</td>{% endif %}
+      </tr>{% else %}<tr><td colspan="8">{{ m.empty() }}</td></tr>{% endfor %}</tbody></table></div>
+    {% if screen and apps %}<button class="btn btn-sta" data-confirm="ส่งชุดผลคัดเลือกเพื่ออนุมัติ?">ส่งชุดผลเพื่ออนุมัติ</button>{% endif %}
+    </form>
+    {% if batches %}<h3 class="h6 mt-3">ชุดผลคัดเลือก</h3><div class="list-group">{% for b in batches %}
+      <a class="list-group-item list-group-item-action d-flex justify-content-between" href="{{ url_for('activities.batch_view', bid=b.id) }}"><span>ชุดที่ {{ loop.index }} · {{ b.created_at|thaidate }}</span><span class="badge text-bg-{{ 'success' if b.state.approved else 'warning' }}">{{ b.state.label }}</span></a>{% endfor %}</div>{% endif %}
+  </div>
+
+  <div class="tab-pane fade p-3" id="staff">
+    <div class="d-flex justify-content-end mb-2">{{ m.export_buttons('activity_staff', {'activity_id': act.id}) }}</div>
+    <table class="table table-sm"><thead><tr><th>ตำแหน่ง</th><th>รหัสนักศึกษา</th><th>ชื่อ</th><th>ผล</th><th>ยืนยัน</th><th>การปฏิบัติงาน</th></tr></thead><tbody>
+      {% for s in staff if not s.removed %}{% set u = users[s.user_id] %}<tr><td class="small">{{ pos_map.get(s.activity_position_id, {}).get('name') }}</td><td>{{ u.student_code }}</td><td>{{ u|uname }}</td>
+        <td>{{ m.badge({'APPROVED':'PASS','RESERVE':'RESERVE','REJECTED':'FAIL'}[s.result]) }}</td><td>{{ m.badge(s.confirm_status) if s.confirm_status else '-' }}</td><td>{{ m.badge(s.work_status) if s.work_status else '-' }}</td></tr>
+      {% else %}<tr><td colspan="6">{{ m.empty() }}</td></tr>{% endfor %}</tbody></table>
+  </div>
+
+  <div class="tab-pane fade p-3" id="sessions">
+    <div class="row g-3">
+      <div class="col-lg-6">
+        <h3 class="h6">รอบกิจกรรม</h3>
+        <ul class="list-group mb-2">{% for s in sessions %}
+          <li class="list-group-item d-flex justify-content-between align-items-center"><span>{{ s.name }}<div class="small text-secondary">{{ s.start_at|thaidate }} – {{ s.end_at|thaidate }} · เช็กชื่อ {{ att|selectattr('session_id', 'equalto', s.id)|list|length }} คน</div></span>
+            {% if manage %}<a class="btn btn-sm btn-sta" href="{{ url_for('activities.session_qr', sid=s.id) }}" target="_blank"><i class="bi bi-qr-code"></i> QR</a>{% endif %}</li>
+        {% else %}<li class="list-group-item small text-secondary">ยังไม่มีรอบ</li>{% endfor %}</ul>
+        {% if manage %}<form method="post" action="{{ url_for('activities.add_session', aid=act.id) }}" class="row g-2">{{ m.csrf() }}
+          <div class="col-12"><input class="form-control form-control-sm" name="name" placeholder="ชื่อรอบ เช่น วันที่ 1 ช่วงเช้า"></div>
+          <div class="col-6"><input class="form-control form-control-sm" type="datetime-local" name="start_at" required></div>
+          <div class="col-6"><input class="form-control form-control-sm" type="datetime-local" name="end_at" required></div>
+          <div class="col-12"><button class="btn btn-sm btn-outline-success">+ เพิ่มรอบ</button></div></form>{% endif %}
+      </div>
+      <div class="col-lg-6">
+        <div class="d-flex justify-content-between align-items-center mb-2"><h3 class="h6 mb-0">ชั่วโมงกิจกรรม</h3>{% if manage %}{{ m.export_buttons('activity_hours', {'activity_id': act.id}) }}{% endif %}</div>
+        <table class="table table-sm"><thead><tr><th>ทีมงาน</th><th>ชั่วโมง</th><th>ที่มา</th></tr></thead><tbody>
+          {% for s in staff if s.confirm_status == 'CONFIRMED' %}{% set h = hours.get(s.user_id) %}<tr><td>{{ users[s.user_id]|uname }}</td><td>{{ h.hours if h else 0 }}</td><td class="small">{{ ('มือ: ' ~ h.reason) if h and h.source == 'MANUAL' else 'อัตโนมัติ' }}</td></tr>{% endfor %}</tbody></table>
+        {% if manage %}
+        <form method="post" action="{{ url_for('activities.manual_attendance', aid=act.id) }}" class="row g-2 border rounded p-2">{{ m.csrf() }}
+          <div class="col-12 small fw-semibold">บันทึกด้วยมือ</div>
+          <div class="col-12"><select class="form-select form-select-sm" name="user_id">{% for s in staff if s.confirm_status == 'CONFIRMED' %}<option value="{{ s.user_id }}">{{ users[s.user_id]|uname }}</option>{% endfor %}</select></div>
+          <div class="col-6"><select class="form-select form-select-sm" name="session_id">{% for s in sessions %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}</select></div>
+          <div class="col-6"><button name="action" value="checkin" class="btn btn-sm btn-outline-secondary w-100">เช็กชื่อแทน</button></div>
+          <div class="col-4"><input class="form-control form-control-sm" type="number" step="0.5" name="hours" placeholder="ชั่วโมง"></div>
+          <div class="col-8"><input class="form-control form-control-sm" name="reason" placeholder="เหตุผล (บังคับ)"></div>
+          <div class="col-12"><button name="action" value="hours" class="btn btn-sm btn-outline-secondary">บันทึกชั่วโมง</button></div>
+        </form>{% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="tab-pane fade p-3" id="report">
+    {% if manage %}
+    <form method="post" action="{{ url_for('activities.report', aid=act.id) }}" enctype="multipart/form-data">{{ m.csrf() }}
+      <label class="form-label">สรุปผลการดำเนินงาน</label><textarea class="form-control mb-2" name="result_summary" rows="4">{{ act.result_summary or '' }}</textarea>
+      <div class="row g-2 mb-2"><div class="col-md-4"><input class="form-control" type="number" name="participants" placeholder="จำนวนผู้เข้าร่วม" value="{{ act.participants or '' }}"></div>
+        <div class="col-md-8">{% if evidence|length < max_evidence %}<input class="form-control" type="file" name="evidence" multiple accept="image/jpeg,image/png,image/webp" data-max-files="{{ max_evidence - evidence|length }}">
+          <div class="form-text">ภาพหลักฐานได้อีก {{ max_evidence - evidence|length }} รูป (สูงสุด {{ max_evidence }} รูปต่อกิจกรรม ระบบย่อรูปให้อัตโนมัติ)</div>
+          {% else %}<div class="form-text">ครบ {{ max_evidence }} รูปแล้ว ลบรูปเดิมก่อนถ้าต้องการเปลี่ยน</div>{% endif %}</div></div>
+      <div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="done" id="done" {% if act.status == 'DONE' %}checked{% endif %}><label class="form-check-label" for="done">ปิดกิจกรรม (สรุปสถานะทีมงาน เสร็จสิ้น/ขาด)</label></div>
+      <button class="btn btn-sta">บันทึกผล</button></form>
+    {% else %}<div class="pre-wrap">{{ act.result_summary or 'ยังไม่มีการบันทึกผล' }}</div>{% endif %}
+    {% if evidence %}<h3 class="h6 mt-3">ภาพหลักฐาน ({{ evidence|length }}/{{ max_evidence }})</h3>
+    <div class="row g-2">{% for e in evidence %}
+      <div class="col-6 col-md-4 col-lg-3"><div class="card h-100">
+        <a href="{{ url_for('activities.evidence_image', eid=e.id) }}" target="_blank"><img class="news-cover" src="{{ url_for('activities.evidence_image', eid=e.id) }}" alt="{{ e.name }}" loading="lazy"></a>
+        {% if manage %}<div class="card-body p-2"><form method="post" action="{{ url_for('activities.evidence_delete', eid=e.id) }}" data-confirm="ลบภาพนี้?">{{ m.csrf() }}<button class="btn btn-sm btn-outline-danger w-100"><i class="bi bi-trash"></i> ลบ</button></form></div>{% endif %}
+      </div></div>{% endfor %}</div>{% endif %}
+    {% if docs %}<h3 class="h6 mt-3">เอกสารที่เกี่ยวข้อง</h3><ul class="small">{% for d in docs %}<li><a href="{{ url_for('documents.open_link', did=d.id) }}" target="_blank" rel="noopener">{{ d.title }}</a></li>{% endfor %}</ul>{% endif %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

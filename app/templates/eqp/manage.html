@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}ทะเบียนอุปกรณ์{% endblock %}
+{% block content %}
+{% call m.page_header('ทะเบียนอุปกรณ์', 'เพิ่ม/ลบ/แก้ไขได้เฉพาะหัวหน้าฝ่ายอุปกรณ์และสถานที่') %}{{ m.export_buttons('equipment_models') }}{% endcall %}
+<div class="row g-3">
+<div class="col-lg-8"><div class="card"><div class="table-responsive"><table class="table table-sm mb-0">
+  <thead><tr><th>รหัส</th><th>ชื่อ</th><th>หมวด</th><th>ประเภท</th><th>ใช้งานได้</th><th>ราคาทดแทน</th><th></th></tr></thead><tbody>
+  {% for mo in models %}<tr class="{{ 'text-secondary' if not mo.is_active }}"><td>{{ mo.code }}</td><td>{{ mo.name }}</td><td class="small">{{ cats.get(mo.category_id, {}).get('name') }}</td>
+    <td class="small">{{ 'รายชิ้น (QR)' if mo.is_serialized else 'นับจำนวน' }}</td><td>{{ mo.cap }}</td><td>{{ '{:,.0f}'.format(mo.replacement_cost or 0) }}</td>
+    <td><a class="btn btn-sm btn-outline-secondary" href="{{ url_for('equipment.model_detail', mid=mo.id) }}">จัดการ</a></td></tr>
+  {% else %}<tr><td colspan="7">{{ m.empty() }}</td></tr>{% endfor %}</tbody></table></div></div></div>
+<div class="col-lg-4"><div class="card"><div class="card-header">เพิ่มอุปกรณ์</div><div class="card-body">
+  {% include "eqp/_model_form.html" %}
+</div></div></div>
+</div>
+{% endblock %}

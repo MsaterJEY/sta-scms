@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}หน้าแรก{% endblock %}
+{% block content %}
+<section class="hero p-4 p-md-5 mb-4">
+  <div class="row align-items-center g-4">
+    <div class="col-lg-8">
+      <h1 class="fw-bold mb-2">ระบบบริหารจัดการสโมสรนักศึกษา</h1>
+      <p class="lead mb-4">คณะวิทยาศาสตร์เทคโนโลยีและการเกษตร มหาวิทยาลัยราชภัฏยะลา — รับสมัครกรรมการ ทีมงานกิจกรรม ยืม-คืนอุปกรณ์ คำร้อง และข่าวประกาศ ในที่เดียว</p>
+      <div class="d-flex flex-wrap gap-2">
+        {% if me %}
+        <a href="{{ url_for('dashboard.index') }}" class="btn btn-light btn-lg">ไปที่หน้าของฉัน</a>
+        {% else %}
+        <a href="{{ url_for('auth.register') }}" class="btn btn-light btn-lg">ลงทะเบียน</a>
+        <a href="{{ url_for('auth.login') }}" class="btn btn-outline-light btn-lg">เข้าสู่ระบบ</a>
+        {% endif %}
+      </div>
+    </div>
+    <div class="col-lg-4 d-none d-lg-block text-center"><i class="bi bi-people-fill" style="font-size:7rem;opacity:.35"></i></div>
+  </div>
+</section>
+
+<div class="row g-3 mb-4">
+  {% for icon, title, text, link in [
+    ('person-badge', 'รับสมัครกรรมการ', 'สมัครกรรมการ/อนุกรรมการ เลือกได้ 3 อันดับ', url_for('recruit.index')),
+    ('calendar-event', 'ทีมงานกิจกรรม', 'สมัครทีมงาน เช็กชื่อด้วย QR สะสมชั่วโมง', url_for('activities.index')),
+    ('box-seam', 'ยืม-คืนอุปกรณ์', 'ดูของที่ว่างและส่งคำขอยืมออนไลน์', url_for('equipment.catalog')),
+    ('chat-left-text', 'คำร้อง/ร้องเรียน', 'ส่งเรื่อง ติดตามสถานะ ส่งแบบนิรนามได้', url_for('tickets.index'))] %}
+  <div class="col-6 col-lg-3">
+    <a href="{{ link }}" class="card h-100 text-decoration-none text-body">
+      <div class="card-body">
+        <i class="bi bi-{{ icon }} fs-2 text-sta"></i>
+        <div class="fw-semibold mt-2">{{ title }}</div>
+        <div class="small text-secondary">{{ text }}</div>
+      </div>
+    </a>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-8">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <h2 class="h5 mb-0">ข่าวและประกาศล่าสุด</h2>
+      <a href="{{ url_for('public.news') }}" class="small">ดูทั้งหมด</a>
+    </div>
+    {% for a in anns %}
+    <a class="card mb-2 text-decoration-none text-body" href="{{ url_for('public.news_detail', slug=a.slug) }}">
+      <div class="card-body py-3">
+        <div class="d-flex gap-2 align-items-center small mb-1">
+          {% if a.is_pinned %}<span class="badge text-bg-warning"><i class="bi bi-pin-angle"></i> ปักหมุด</span>{% endif %}
+          <span class="badge text-bg-light">{{ cats.get(a.category_id, {}).get('name', '') }}</span>
+          <span class="text-secondary">{{ a.publish_at|thaiday }}</span>
+        </div>
+        <div class="fw-semibold">{{ a.title }}</div>
+      </div>
+    </a>
+    {% else %}{{ m.empty('ยังไม่มีประกาศ') }}{% endfor %}
+  </div>
+  <div class="col-lg-4">
+    <div class="card mb-3">
+      <div class="card-header">กำลังเปิดรับสมัคร</div>
+      <ul class="list-group list-group-flush">
+        {% for r in rounds %}
+        <li class="list-group-item"><a href="{{ url_for('recruit.detail', rid=r.id) }}">{{ r.title }}</a>
+          <div class="small text-secondary">ปิดรับ {{ r.close_at|thaidate }}</div></li>
+        {% endfor %}
+        {% for p in open_positions[:5] %}
+        <li class="list-group-item"><a href="{{ url_for('activities.detail', aid=p.activity_id) }}">ทีมงาน: {{ p.name }}</a>
+          <div class="small text-secondary">ปิดรับ {{ p.close_at|thaidate }}</div></li>
+        {% endfor %}
+        {% if not rounds and not open_positions %}<li class="list-group-item text-secondary small">ยังไม่มีรอบที่เปิดรับ</li>{% endif %}
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-body">
+        <div class="fw-semibold mb-1"><i class="bi bi-question-circle me-1"></i>มีคำถาม?</div>
+        <p class="small text-secondary mb-2">ดูคำถามที่พบบ่อยก่อนส่งคำร้อง</p>
+        <a href="{{ url_for('public.faq') }}" class="btn btn-sm btn-outline-secondary">คำถามที่พบบ่อย</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

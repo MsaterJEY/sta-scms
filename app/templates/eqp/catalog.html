@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}แคตตาล็อกอุปกรณ์{% endblock %}
+{% block content %}
+{% call m.page_header('ยืม-คืนอุปกรณ์', 'ตรวจจำนวนคงเหลือตามช่วงเวลาที่ต้องการยืม') %}
+<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('equipment.requests_list', mine=1) }}">คำขอของฉัน</a>
+<a class="btn btn-sm btn-sta" href="{{ url_for('equipment.request_new', start=start|inputdt, end=end|inputdt) }}"><i class="bi bi-cart-plus"></i> ส่งคำขอยืม</a>
+{% endcall %}
+<form class="row g-2 mb-3">
+  <div class="col-6 col-md-3"><label class="form-label small mb-0">วันยืม</label><input class="form-control" type="datetime-local" name="start" value="{{ start|inputdt }}"></div>
+  <div class="col-6 col-md-3"><label class="form-label small mb-0">วันคืน</label><input class="form-control" type="datetime-local" name="end" value="{{ end|inputdt }}"></div>
+  <div class="col-8 col-md-4"><label class="form-label small mb-0">หมวด</label><select class="form-select" name="cat"><option value="">ทุกหมวด</option>{% for c in cats.values() %}<option value="{{ c.id }}" {% if cat == c.id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}</select></div>
+  <div class="col-4 col-md-2 d-grid align-self-end"><button class="btn btn-sta">ตรวจสอบ</button></div>
+</form>
+<div class="row g-3">
+  {% for mo in models %}
+  <div class="col-6 col-md-4 col-lg-3"><div class="card h-100">
+    {% if mo.image_path %}<img class="news-cover" src="{{ url_for('equipment.image', mid=mo.id) }}" alt="" loading="lazy">{% else %}<div class="news-cover bg-light d-flex align-items-center justify-content-center"><i class="bi bi-box-seam fs-1 text-secondary"></i></div>{% endif %}
+    <div class="card-body">
+      <div class="small text-secondary">{{ cats.get(mo.category_id, {}).get('name') }} · {{ mo.code }}</div>
+      <div class="fw-semibold">{{ mo.name }}</div>
+      <div class="small mt-1">ว่างในช่วงนี้ <strong class="{{ 'text-success' if mo.avail else 'text-danger' }}">{{ mo.avail }}</strong> / {{ mo.cap }}</div>
+      {% if mo.avail %}<a class="btn btn-sm btn-outline-success mt-2" href="{{ url_for('equipment.request_new', model=mo.id, start=start|inputdt, end=end|inputdt) }}">ขอยืม</a>{% endif %}
+    </div></div></div>
+  {% else %}<div class="col-12">{{ m.empty('ยังไม่มีอุปกรณ์') }}</div>{% endfor %}
+</div>
+{% endblock %}

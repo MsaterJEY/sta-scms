@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}Audit Log{% endblock %}
+{% block content %}
+{% call m.page_header('Audit Log', 'อ่านอย่างเดียว แก้ไข/ลบจากหน้าระบบไม่ได้') %}{{ m.export_buttons('audit', args.to_dict()) }}{% endcall %}
+<form class="mb-3" style="max-width:480px"><div class="input-group"><input class="form-control" name="q" value="{{ args.get('q','') }}" placeholder="ค้นหาการกระทำ / ผู้ทำ / รหัสรายการ"><button class="btn btn-sta">ค้นหา</button></div></form>
+<div class="card"><div class="table-responsive"><table class="table table-sm mb-0">
+  <thead><tr><th>เวลา</th><th>ผู้ทำ</th><th>การกระทำ</th><th>รายการ</th><th>หมายเหตุ</th></tr></thead><tbody>
+  {% for a in items %}<tr><td class="small text-nowrap">{{ a.at|thaidate }}</td><td class="small">{{ a.actor_name }}</td><td><code class="small">{{ a.action }}</code></td>
+    <td class="small">{{ a.entity_type }} {{ a.entity_id or '' }}</td><td class="small">{{ a.note or '' }}</td></tr>
+  {% else %}<tr><td colspan="5">{{ m.empty() }}</td></tr>{% endfor %}</tbody></table></div></div>
+{% endblock %}

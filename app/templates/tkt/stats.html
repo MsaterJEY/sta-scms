@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}สถิติคำร้อง{% endblock %}
+{% block content %}
+{% call m.page_header('สถิติคำร้อง', 'เฉพาะค่ารวม ไม่มีเนื้อหารายเรื่อง กลุ่มที่เล็กกว่าเกณฑ์ถูกซ่อน') %}{{ m.export_buttons('ticket_stats') }}{% endcall %}
+<div class="card mb-3"><table class="table mb-0"><thead><tr><th>ประเภท</th><th>จำนวนเรื่อง</th><th>ปิดแล้ว</th><th>ค้างเกิน SLA</th><th>ความพึงพอใจเฉลี่ย</th></tr></thead>
+  <tbody>{% for r in rows %}<tr>{% for c in r %}<td>{{ c }}</td>{% endfor %}</tr>{% endfor %}</tbody></table></div>
+{% if overdue %}
+<div class="card border-danger"><div class="card-header text-danger">เรื่องค้างเกิน SLA และยังไม่มีผู้รับ (ดูอย่างเดียว)</div><ul class="list-group list-group-flush small">
+  {% for t in overdue %}<li class="list-group-item">{{ t.tracking_code }} · ส่งเมื่อ {{ t.created_at|thaidate }} · กำหนด {{ t.due_at|thaidate }}</li>{% endfor %}</ul></div>
+{% endif %}
+{% endblock %}

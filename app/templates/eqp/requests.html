@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}คำขอยืม{% endblock %}
+{% block content %}
+{% call m.page_header('คำขอยืมอุปกรณ์') %}{{ m.export_buttons('equipment_requests', request.args.to_dict()) }}{% endcall %}
+<ul class="nav nav-pills mb-3 small flex-nowrap overflow-auto">
+  {% for k, l in [('', 'ทั้งหมด'), ('PENDING','รอพิจารณา'), ('APPROVED','อนุมัติ'), ('ISSUED','จ่ายแล้ว'), ('PARTIAL_RETURNED','คืนบางส่วน'), ('RETURNED','คืนครบ'), ('OVERDUE','เกินกำหนด'), ('CLOSED','ปิด')] %}
+  <li class="nav-item"><a class="nav-link text-nowrap {{ 'active' if (status or '') == k }}" href="?status={{ k }}{% if request.args.get('mine') %}&mine=1{% endif %}">{{ l }}</a></li>{% endfor %}
+</ul>
+<div class="card"><div class="table-responsive"><table class="table table-sm table-hover mb-0">
+  <thead><tr><th>รหัส</th><th>ผู้ยืม</th><th>วันยืม</th><th>กำหนดคืน</th><th>สถานะ</th></tr></thead><tbody>
+  {% for r in reqs %}{% set u = users[r.requester_id] %}
+  <tr onclick="location='{{ url_for('equipment.request_detail', rid=r.id) }}'" style="cursor:pointer"><td><a href="{{ url_for('equipment.request_detail', rid=r.id) }}">{{ r.tracking_code }}</a></td>
+    <td>{{ u|uname }} <span class="small text-secondary">{{ u.student_code or u.account_type }}</span>{% if r.is_self_request %} <span class="badge text-bg-info">ผู้ขอคือหัวหน้าฝ่าย</span>{% endif %}</td>
+    <td class="small">{{ r.borrow_at|thaidate }}</td><td class="small">{{ r.due_at|thaidate }}</td>
+    <td>{{ m.badge(r.status) }}{% if r.overdue %} <span class="badge text-bg-danger">เกินกำหนด</span>{% endif %}</td></tr>
+  {% else %}<tr><td colspan="5">{{ m.empty() }}</td></tr>{% endfor %}</tbody></table></div></div>
+{% endblock %}

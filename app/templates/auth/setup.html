@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}ตั้งค่าครั้งแรก{% endblock %}
+{% block content %}
+<div class="card mx-auto" style="max-width:560px"><div class="card-body p-4">
+  <h1 class="h4">ตั้งค่าระบบครั้งแรก</h1>
+  <p class="small text-secondary">บันทึกข้อมูลตั้งต้น (สาขา รหัสระดับ กอง ตำแหน่ง ลำดับอนุมัติ หมวดหมู่) รันซ้ำได้โดยไม่ทับข้อมูลที่แก้แล้ว</p>
+  <form method="post">{{ m.csrf() }}<input type="hidden" name="token" value="{{ token }}">
+    <div class="mb-3"><label class="form-label">ปีการศึกษาปัจจุบัน (พ.ศ.)</label><input class="form-control" name="year" value="2569"></div>
+    {% if not has_admin %}
+    <h2 class="h6 mt-4">สร้างผู้ดูแลระบบคนแรก</h2>
+    <div class="row g-2">
+      <div class="col-6"><input class="form-control" name="first_name" placeholder="ชื่อ"></div>
+      <div class="col-6"><input class="form-control" name="last_name" placeholder="นามสกุล"></div>
+      <div class="col-12"><input class="form-control" type="email" name="email" placeholder="อีเมล" required></div>
+      <div class="col-12"><input class="form-control" type="password" name="password" placeholder="รหัสผ่าน 8 ตัวขึ้นไป" minlength="8" required></div>
+    </div>
+    {% else %}<div class="alert alert-info small">มีผู้ดูแลระบบแล้ว — กดปุ่มเพื่อ seed ข้อมูลตั้งต้นซ้ำเท่านั้น</div>{% endif %}
+    <button class="btn btn-sta mt-3 w-100">ดำเนินการ</button>
+  </form>
+</div></div>
+{% endblock %}

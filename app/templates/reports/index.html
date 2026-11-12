@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}รายงานและสถิติ{% endblock %}
+{% block content %}
+{% call m.page_header('รายงานและสถิติ', 'ปีการศึกษา ' ~ year) %}
+<form><select class="form-select form-select-sm" name="year" onchange="this.form.submit()">{% for y in years %}<option value="{{ y.id }}" {% if y.id|int == year %}selected{% endif %}>{{ y.id }}</option>{% endfor %}</select></form>
+{% endcall %}
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-3"><div class="card stat"><div class="card-body"><div class="small text-secondary">ผู้ใช้ทั้งหมด</div><div class="num">{{ by_type.values()|sum }}</div></div></div></div>
+  <div class="col-6 col-md-3"><div class="card stat"><div class="card-body"><div class="small text-secondary">คำขอยืมที่ใช้งานอยู่</div><div class="num">{{ eqp.active }}</div></div></div></div>
+  <div class="col-6 col-md-3"><div class="card stat"><div class="card-body"><div class="small text-secondary">เกินกำหนดคืน</div><div class="num text-danger">{{ eqp.overdue }}</div></div></div></div>
+  <div class="col-6 col-md-3"><div class="card stat"><div class="card-body"><div class="small text-secondary">ค่าชดใช้ค้าง (บาท)</div><div class="num">{{ '{:,.0f}'.format(eqp.fines_pending) }}</div></div></div></div>
+</div>
+<div class="row g-3 mb-3">
+  <div class="col-lg-6"><div class="card h-100"><div class="card-header">นักศึกษาตามสาขา</div><div class="card-body"><canvas id="cProgram" height="260"></canvas></div></div></div>
+  <div class="col-lg-6"><div class="card h-100"><div class="card-header">อุปกรณ์ที่ถูกยืมมากที่สุด (จำนวนที่จ่าย)</div><div class="card-body"><canvas id="cEqp" height="260"></canvas></div></div></div>
+</div>
+<div class="card mb-3"><div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">กิจกรรมและทีมงาน {{ m.export_buttons('report_activities', {'year': year}) }}</div>
+  <div class="table-responsive"><table class="table table-sm mb-0"><thead><tr><th>กิจกรรม</th><th>กอง</th><th>วันที่</th><th>ทีมงานยืนยัน</th><th>ชั่วโมงรวม</th><th>สถานะ</th></tr></thead><tbody>
+  {% for x in act_rows %}<tr><td>{{ x.a.title }}</td><td class="small">{{ x.div }}</td><td class="small">{{ x.a.start_at|thaiday }}</td><td>{{ x.staff }}</td><td>{{ '%.1f'|format(x.hours) }}</td><td>{{ m.badge('DONE' if x.a.status == 'DONE' else 'IN_PROGRESS') }}</td></tr>
+  {% else %}<tr><td colspan="6">{{ m.empty() }}</td></tr>{% endfor %}</tbody></table></div>
+  <div class="card-body border-top small">ชั่วโมงกิจกรรมรวมรายบุคคล: {{ m.export_buttons('report_hours') }}</div></div>
+<div class="row g-3">
+  <div class="col-lg-6"><div class="card h-100"><div class="card-header">รับสมัครกรรมการ/อนุกรรมการ</div><table class="table table-sm mb-0"><thead><tr><th>รอบ</th><th>ผู้สมัคร</th><th>ผ่าน (อนุมัติครบ)</th></tr></thead><tbody>
+    {% for x in rec %}<tr><td><a href="{{ url_for('recruit.detail', rid=x.round.id) }}">{{ x.round.title }}</a></td><td>{{ x.apps }}</td><td>{{ x.pass }}</td></tr>{% else %}<tr><td colspan="3">{{ m.empty() }}</td></tr>{% endfor %}</tbody></table>
+    {% if can('admin.manage') or can('report.view') %}<div class="card-body border-top small">รายชื่อผู้ถือตำแหน่งทั้งหมด: {{ m.export_buttons('holders', {'year': year}) }}</div>{% endif %}</div></div>
+  {% if show_tkt %}<div class="col-lg-6"><div class="card h-100"><div class="card-header d-flex justify-content-between">สถิติคำร้อง (ค่ารวม) {{ m.export_buttons('ticket_stats') }}</div><table class="table table-sm mb-0"><thead><tr><th>ประเภท</th><th>เรื่อง</th><th>ปิด</th><th>เกิน SLA</th><th>พึงพอใจ</th></tr></thead>
+    <tbody>{% for r in tkt %}<tr>{% for c in r %}<td>{{ c }}</td>{% endfor %}</tr>{% endfor %}</tbody></table></div></div>{% endif %}
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+const green = '#1f6f4a';
+new Chart(document.getElementById('cProgram'), { type: 'bar',
+  data: { labels: {{ by_program.keys()|list|tojson }}, datasets: [{ data: {{ by_program.values()|list|tojson }}, backgroundColor: green, borderRadius: 4 }] },
+  options: { indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, ticks: { precision: 0 } } } } });
+new Chart(document.getElementById('cEqp'), { type: 'bar',
+  data: { labels: {{ top_models|map(attribute=0)|list|tojson }}, datasets: [{ data: {{ top_models|map(attribute=1)|list|tojson }}, backgroundColor: '#2f8f62', borderRadius: 4 }] },
+  options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } } });
+</script>
+{% endblock %}

@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}กิจกรรมและทีมงาน{% endblock %}
+{% block content %}
+{% call m.page_header('กิจกรรมและทีมงาน', 'ปีการศึกษา ' ~ year) %}
+<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('activities.my') }}">ทีมงาน/ชั่วโมงของฉัน</a>
+{% if can('act.manage') and my_divs %}<a class="btn btn-sm btn-sta" href="{{ url_for('activities.form') }}"><i class="bi bi-plus"></i> สร้างกิจกรรม</a>{% endif %}
+{% endcall %}
+{% if open_pos %}
+<h2 class="h6">ตำแหน่งทีมงานที่เปิดรับ</h2>
+<div class="row g-3 mb-4">{% for p in open_pos %}{% set a = act_map.get(p.activity_id) %}{% if a %}
+  <div class="col-md-6 col-lg-4"><a class="card h-100 text-decoration-none text-body" href="{{ url_for('activities.detail', aid=a.id) }}"><div class="card-body">
+    <div class="small text-secondary">{{ a.title }}</div><div class="fw-semibold">{{ p.name }} · {{ p.quota }} คน</div>
+    <div class="small">สมัครได้: {{ (p.eligible_groups or [])|map('extract', GROUP_LABELS)|join(', ') }}</div>
+    <div class="small text-secondary">ปิดรับ {{ p.close_at|thaidate }}</div></div></a></div>{% endif %}{% endfor %}
+</div>{% endif %}
+<h2 class="h6">กิจกรรมทั้งหมด</h2>
+<div class="card"><div class="table-responsive"><table class="table table-sm mb-0">
+  <thead><tr><th>กิจกรรม</th><th>กอง</th><th>วันที่</th><th>สถานที่</th><th>สถานะ</th></tr></thead><tbody>
+  {% for a in acts %}<tr><td><a href="{{ url_for('activities.detail', aid=a.id) }}">{{ a.title }}</a>{% if a.division_id in my_divs %} <span class="badge text-bg-light">กองของฉัน</span>{% endif %}</td>
+    <td class="small">{{ divs.get(a.division_id, {}).get('name') }}</td><td class="small">{{ a.start_at|thaidate }}</td><td class="small">{{ a.location or '-' }}</td>
+    <td>{{ m.badge('DONE' if a.status == 'DONE' else 'IN_PROGRESS') }}</td></tr>
+  {% else %}<tr><td colspan="5">{{ m.empty() }}</td></tr>{% endfor %}</tbody></table></div></div>
+{% endblock %}

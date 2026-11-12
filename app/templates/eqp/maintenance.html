@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}ซ่อมบำรุง{% endblock %}
+{% block content %}
+{% call m.page_header('ซ่อมบำรุงและตัดจำหน่าย') %}{% endcall %}
+<div class="card mb-3"><div class="card-body">
+  <form method="post" class="row g-2">{{ m.csrf() }}<input type="hidden" name="action" value="add">
+    <div class="col-md-3"><input class="form-control form-control-sm" name="asset_tag" placeholder="รหัสครุภัณฑ์ (ของรายชิ้น)"></div>
+    <div class="col-md-3"><select class="form-select form-select-sm" name="model_id">{% for mo in models.values()|sort(attribute='name') if not mo.is_serialized %}<option value="{{ mo.id }}">{{ mo.name }}</option>{% endfor %}</select></div>
+    <div class="col-md-1"><input class="form-control form-control-sm" type="number" min="1" name="qty" value="1" title="จำนวน (ของนับรวม)"></div>
+    <div class="col-md-3"><input class="form-control form-control-sm" name="issue" placeholder="อาการ/ปัญหา" required></div>
+    <div class="col-md-2 d-grid"><button class="btn btn-sm btn-sta">ส่งซ่อม</button></div>
+  </form><div class="form-text">ระบุรหัสครุภัณฑ์สำหรับของรายชิ้น หรือเลือกรุ่นและจำนวนสำหรับของนับรวม</div></div></div>
+<div class="card"><div class="table-responsive"><table class="table table-sm mb-0">
+  <thead><tr><th>อุปกรณ์</th><th>จำนวน</th><th>ปัญหา</th><th>แจ้งเมื่อ</th><th>สถานะ</th><th></th></tr></thead><tbody>
+  {% for x in items %}<tr><td>{{ models.get(x.model_id, {}).get('name') }}{% if x.unit_id %} <code>{{ units.get(x.unit_id, {}).get('asset_tag') }}</code>{% endif %}</td><td>{{ x.qty }}</td><td class="small">{{ x.issue }}</td>
+    <td class="small">{{ x.reported_at|thaidate }}</td><td>{{ m.badge(x.status) }}{% if x.note %}<div class="small text-secondary">{{ x.note }}</div>{% endif %}</td>
+    <td>{% if x.status == 'IN_PROGRESS' %}<form method="post" class="d-flex gap-1">{{ m.csrf() }}<input type="hidden" name="mid" value="{{ x.id }}">
+      <input class="form-control form-control-sm" type="number" step="0.01" name="cost" placeholder="ค่าซ่อม" style="width:90px"><input class="form-control form-control-sm" name="reason" placeholder="เหตุผลตัดจำหน่าย" style="width:140px">
+      <button name="action" value="complete" class="btn btn-sm btn-outline-success">ซ่อมเสร็จ</button><button name="action" value="dispose" class="btn btn-sm btn-outline-danger" data-confirm="ตัดจำหน่าย?">ตัดจำหน่าย</button></form>{% endif %}</td></tr>
+  {% else %}<tr><td colspan="6">{{ m.empty() }}</td></tr>{% endfor %}</tbody></table></div></div>
+{% endblock %}

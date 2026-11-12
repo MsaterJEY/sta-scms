@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}ปีการศึกษา{% endblock %}
+{% block content %}
+{% call m.page_header('ปีการศึกษา / วาระ', 'เปลี่ยนวาระแล้วสิทธิ์ของตำแหน่งในวาระเดิมหายทันที ผู้ถือคนใหม่ได้สิทธิ์อัตโนมัติ') %}{% endcall %}
+<div class="row g-3">
+<div class="col-lg-7"><div class="card"><table class="table mb-0">
+  <thead><tr><th>ปี</th><th>เริ่ม</th><th>สิ้นสุด</th><th></th></tr></thead><tbody>
+  {% for y in items %}<tr><td>{{ y.name }} {% if y.is_current %}<span class="badge text-bg-success">ปัจจุบัน</span>{% endif %}</td><td>{{ y.start_date }}</td><td>{{ y.end_date }}</td>
+    <td>{% if not y.is_current %}<form method="post" data-confirm="ตั้งปี {{ y.name }} เป็นวาระปัจจุบัน?">{{ m.csrf() }}<input type="hidden" name="action" value="current"><input type="hidden" name="year" value="{{ y.id }}">
+      <button class="btn btn-sm btn-outline-success">ตั้งเป็นปัจจุบัน</button>
+      <label class="small ms-2"><input type="checkbox" name="force" value="1"> ข้ามการตรวจตำแหน่ง locked</label></form>{% endif %}</td></tr>{% endfor %}
+  </tbody></table></div></div>
+<div class="col-lg-5"><div class="card"><div class="card-header">เพิ่มปีการศึกษา</div><div class="card-body">
+  <form method="post">{{ m.csrf() }}<input type="hidden" name="action" value="add">
+    <div class="mb-2"><input class="form-control" name="year" type="number" placeholder="ปี พ.ศ. เช่น 2570" required></div>
+    <div class="row g-2 mb-3"><div class="col"><input class="form-control" type="date" name="start_date"></div><div class="col"><input class="form-control" type="date" name="end_date"></div></div>
+    <button class="btn btn-sta">เพิ่ม</button></form></div></div></div>
+</div>
+{% endblock %}

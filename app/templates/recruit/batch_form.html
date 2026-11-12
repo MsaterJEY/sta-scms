@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}จัดชุดผลคัดเลือก{% endblock %}
+{% block content %}
+{% call m.page_header('จัดชุดผลคัดเลือกเสนออนุมัติ', r.title ~ ' — ต้องได้รับอนุมัติจากอุปนายกและเลขาฝ่ายบริหารฯ ครบทั้งสอง') %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('recruit.detail', rid=r.id) }}">กลับ</a>{% endcall %}
+<form method="post">{{ m.csrf() }}
+{% if not batch %}<div class="mb-2"><select class="form-select form-select-sm" name="kind" style="max-width:280px"><option value="MAIN">ชุดหลัก</option><option value="SUPPLEMENT">ชุดเพิ่มเติม (เลื่อนผู้สำรอง)</option></select></div>{% endif %}
+<div class="card"><div class="table-responsive"><table class="table table-sm mb-0">
+  <thead><tr><th>รหัสนักศึกษา</th><th>ชื่อ</th><th>คะแนนเฉลี่ย</th><th>ตำแหน่งที่ได้</th><th>ผล</th><th>หมายเหตุ</th></tr></thead><tbody>
+  {% for a in apps %}{% set ex = existing.get(a.id) %}{% set sc = summary.get(a.id) %}
+  <tr><td>{{ users[a.user_id].student_code }}</td><td>{{ users[a.user_id]|uname }} {{ m.badge(a.status) }}</td>
+    <td>{{ sc.avg if sc else '-' }} {% if sc %}<span class="small text-secondary">({{ sc.count }} คน)</span>{% endif %}</td>
+    <td><select class="form-select form-select-sm" name="choice_{{ a.id }}">{% for c in choices.get(a.id, []) %}<option value="{{ c.id }}" {% if ex and ex.choice_id == c.id %}selected{% endif %}>{{ c.rank }}. {{ rp_map.get(c.round_position_id, {}).get('position', {}).get('name') }}</option>{% endfor %}</select></td>
+    <td><select class="form-select form-select-sm" name="res_{{ a.id }}"><option value="">- ไม่รวม -</option>
+      {% for k in ['PASS','RESERVE','FAIL'] %}<option value="{{ k }}" {% if ex and ex.result == k %}selected{% endif %}>{{ STATUS[k][0] }}</option>{% endfor %}</select></td>
+    <td><input class="form-control form-control-sm" name="reason_{{ a.id }}" value="{{ ex.reason if ex else '' }}"></td></tr>
+  {% else %}<tr><td colspan="6">{{ m.empty('ไม่มีผู้สมัครที่พร้อมจัดผล') }}</td></tr>{% endfor %}
+  </tbody></table></div></div>
+<button class="btn btn-sta mt-3" data-confirm="ส่งชุดผลคัดเลือกเพื่ออนุมัติ?">ส่งเพื่ออนุมัติ</button>
+</form>
+{% endblock %}

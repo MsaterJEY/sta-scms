@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}จัดการประกาศ{% endblock %}
+{% block content %}
+{% call m.page_header('จัดการประกาศ', 'ข่าวทั่วไปเผยแพร่ได้ทันที ประกาศผลคัดเลือกเผยแพร่ได้หลังอนุมัติครบเท่านั้น') %}<a class="btn btn-sm btn-sta" href="{{ url_for('announcements.form') }}"><i class="bi bi-plus"></i> สร้างประกาศ</a>{% endcall %}
+<ul class="nav nav-pills mb-3 small">{% for k, l in [('', 'ทั้งหมด'), ('DRAFT','ร่าง'), ('SCHEDULED','ตั้งเวลา'), ('PUBLISHED','เผยแพร่'), ('ARCHIVED','เก็บถาวร')] %}
+  <li class="nav-item"><a class="nav-link {{ 'active' if (status or '') == k }}" href="?status={{ k }}">{{ l }}</a></li>{% endfor %}</ul>
+<div class="card"><div class="table-responsive"><table class="table table-sm mb-0">
+  <thead><tr><th>หัวข้อ</th><th>หมวด</th><th>สถานะ</th><th>เผยแพร่</th><th></th></tr></thead><tbody>
+  {% for a in items %}<tr><td>{% if a.is_pinned %}<i class="bi bi-pin-angle-fill text-warning"></i> {% endif %}<a href="{{ url_for('announcements.form', aid=a.id) }}">{{ a.title }}</a>
+      {% if a.source_type %}<span class="badge text-bg-light">ร่างอัตโนมัติ</span>{% endif %}{% if a.blocked %} <span class="badge text-bg-danger">รออนุมัติผล</span>{% endif %}</td>
+    <td class="small">{{ cats.get(a.category_id, {}).get('name') }}</td><td>{{ m.badge(a.status) }}{% if a.live %} <i class="bi bi-broadcast text-success" title="แสดงอยู่"></i>{% endif %}</td>
+    <td class="small">{{ a.publish_at|thaidate if a.publish_at else '-' }}</td>
+    <td>{% if a.live %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('public.news_detail', slug=a.slug) }}" target="_blank">ดู</a>{% endif %}</td></tr>
+  {% else %}<tr><td colspan="5">{{ m.empty() }}</td></tr>{% endfor %}</tbody></table></div></div>
+{% endblock %}

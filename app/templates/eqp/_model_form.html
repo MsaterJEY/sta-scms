@@ -1,0 +1,18 @@
+{% set mo = m_edit if m_edit is defined else none %}
+<form method="post" action="{{ url_for('equipment.manage') }}" enctype="multipart/form-data">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  {% if mo %}<input type="hidden" name="model_id" value="{{ mo.id }}">{% endif %}
+  <input class="form-control mb-2" name="code" placeholder="รหัสอุปกรณ์ เช่น SPK" value="{{ mo.code if mo else '' }}" required>
+  <input class="form-control mb-2" name="name" placeholder="ชื่ออุปกรณ์" value="{{ mo.name if mo else '' }}" required>
+  <select class="form-select mb-2" name="category_id">{% for c in (cats.values() if cats is mapping else cats) %}<option value="{{ c.id }}" {% if mo and mo.category_id == c.id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}</select>
+  <textarea class="form-control mb-2" name="description" rows="2" placeholder="รายละเอียด">{{ mo.description if mo else '' }}</textarea>
+  <div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="is_serialized" id="ser" {% if mo and mo.is_serialized %}checked{% endif %}><label class="form-check-label small" for="ser">ของมีค่า: ติดตามรายชิ้นด้วยรหัสครุภัณฑ์/QR</label></div>
+  <div class="row g-2 mb-2">
+    <div class="col-6"><label class="form-label small mb-0">จำนวนรวม (ของนับรวม)</label><input class="form-control" type="number" min="0" name="quantity_total" value="{{ mo.quantity_total if mo else 0 }}"></div>
+    <div class="col-6"><label class="form-label small mb-0">ราคาทดแทน (บาท)</label><input class="form-control" type="number" min="0" step="0.01" name="replacement_cost" value="{{ mo.replacement_cost if mo else 0 }}"></div>
+  </div>
+  <input class="form-control mb-2" name="location" placeholder="ที่เก็บ" value="{{ mo.location if mo else '' }}">
+  <label class="form-label small mb-0">รูปภาพ</label><input class="form-control mb-2" type="file" name="image" accept="image/*">
+  <div class="form-check mb-3"><input class="form-check-input" type="checkbox" name="is_active" id="act" {% if not mo or mo.is_active %}checked{% endif %}><label class="form-check-label small" for="act">เปิดให้ยืม</label></div>
+  <button class="btn btn-sta">บันทึก</button>
+</form>

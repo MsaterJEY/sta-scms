@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}บัญชีผู้ใช้{% endblock %}
+{% block content %}
+{% call m.page_header('บัญชีผู้ใช้', 'ทั้งหมด ' ~ users|length ~ ' บัญชี') %}{{ m.export_buttons('users', args.to_dict()) }}{% endcall %}
+<form class="row g-2 mb-3">
+  <div class="col-12 col-md-4"><input class="form-control" name="q" value="{{ args.get('q','') }}" placeholder="รหัสนักศึกษา / ชื่อ / อีเมล"></div>
+  <div class="col-6 col-md-2"><select class="form-select" name="type"><option value="">ทุกประเภท</option>
+    {% for t in ['SCI','OTHER_MRU','EXTERNAL'] %}<option {% if args.get('type') == t %}selected{% endif %}>{{ t }}</option>{% endfor %}</select></div>
+  <div class="col-6 col-md-3"><select class="form-select" name="program"><option value="">ทุกสาขา</option>
+    {% for p in programs.values()|sort(attribute='id') %}<option value="{{ p.id }}" {% if args.get('program') == p.id %}selected{% endif %}>{{ p.id }} {{ p.name_th }}</option>{% endfor %}</select></div>
+  <div class="col-6 col-md-2 form-check d-flex align-items-center gap-2 ps-4"><input class="form-check-input" type="checkbox" name="review" value="1" id="rv" {% if args.get('review') %}checked{% endif %}><label for="rv" class="form-check-label small">คิวรอตรวจ</label></div>
+  <div class="col-6 col-md-1 d-grid"><button class="btn btn-sta">กรอง</button></div>
+</form>
+<div class="card"><div class="table-responsive"><table class="table table-sm table-hover mb-0">
+  <thead><tr><th>รหัสนักศึกษา</th><th>ชื่อ-นามสกุล</th><th>ประเภท</th><th>สาขา</th><th>ชั้นปี</th><th>สถานะ</th><th></th></tr></thead>
+  <tbody>{% for u in users %}
+  <tr><td>{{ u.student_code or '-' }}</td><td>{{ u|uname }}{% if 'SYS_ADMIN' in (u.system_roles or []) %} <span class="badge text-bg-dark">ADMIN</span>{% endif %}</td>
+    <td class="small">{{ u.account_type }}</td><td class="small">{{ programs.get(u.program_code, {}).get('name_th', u.program_code or '-') }}{% if u.needs_review %} <span class="badge text-bg-warning">ตรวจสาขา</span>{% endif %}{% if u.over_duration %} <span class="badge text-bg-info">เกินหลักสูตร</span>{% endif %}</td>
+    <td>{{ u.year_level or '-' }}</td><td>{{ m.badge(u.status) }}</td>
+    <td><a class="btn btn-sm btn-outline-secondary" href="{{ url_for('admin.user_edit', uid=u.id) }}">แก้ไข</a></td></tr>
+  {% else %}<tr><td colspan="7">{{ m.empty() }}</td></tr>{% endfor %}</tbody></table></div></div>
+{% endblock %}

@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}ค่าชดใช้{% endblock %}
+{% block content %}
+{% call m.page_header('ค่าปรับ/ค่าชดใช้', 'ชำระหน้างาน บันทึกโดยหัวหน้าฝ่ายอุปกรณ์') %}{{ m.export_buttons('equipment_fines') }}{% endcall %}
+<ul class="nav nav-pills mb-3 small">{% for k, l in [('', 'ทั้งหมด'), ('PENDING','ค้างชำระ'), ('PAID','ชำระแล้ว'), ('WAIVED','ยกเว้น')] %}
+  <li class="nav-item"><a class="nav-link {{ 'active' if (status or '') == k }}" href="?status={{ k }}">{{ l }}</a></li>{% endfor %}</ul>
+<div class="card"><div class="table-responsive"><table class="table table-sm mb-0">
+  <thead><tr><th>ผู้ยืม</th><th>ประเภท</th><th>จำนวนเงิน</th><th>สถานะ</th><th>บันทึกเมื่อ</th><th></th></tr></thead><tbody>
+  {% for f in items %}<tr><td>{{ users[f.user_id]|uname }}</td><td>{{ {'LATE':'คืนล่าช้า','DAMAGE':'ชำรุด','LOSS':'สูญหาย'}[f.type] }}</td><td>{{ '{:,.2f}'.format(f.amount) }}</td><td>{{ m.badge(f.status) }}</td>
+    <td class="small">{{ f.created_at|thaidate }}</td><td><a class="btn btn-sm btn-outline-secondary" href="{{ url_for('equipment.request_detail', rid=f.request_id) }}">คำขอ</a></td></tr>
+  {% else %}<tr><td colspan="6">{{ m.empty() }}</td></tr>{% endfor %}</tbody></table></div></div>
+{% endblock %}

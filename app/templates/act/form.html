@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}กิจกรรม{% endblock %}
+{% block content %}
+{% call m.page_header('แก้ไขกิจกรรม' if act else 'สร้างกิจกรรม', 'สร้าง/แก้ไขได้เฉพาะกิจกรรมของกองตนเอง') %}{% endcall %}
+<div class="card" style="max-width:760px"><div class="card-body">
+<form method="post">{{ m.csrf() }}
+  <div class="mb-2"><label class="form-label">ชื่อกิจกรรม</label><input class="form-control" name="title" required value="{{ act.title if act else '' }}"></div>
+  <div class="row g-2 mb-2">
+    <div class="col-md-6"><label class="form-label">กองเจ้าของกิจกรรม</label><select class="form-select" name="division_id">{% for d in divs %}<option value="{{ d.id }}" {% if act and act.division_id == d.id %}selected{% endif %}>{{ d.name }}</option>{% endfor %}</select></div>
+    <div class="col-md-6"><label class="form-label">สถานที่</label><input class="form-control" name="location" value="{{ act.location if act else '' }}"></div>
+    <div class="col-md-6"><label class="form-label">เริ่ม</label><input class="form-control" type="datetime-local" name="start_at" required value="{{ act.start_at|inputdt if act else '' }}"></div>
+    <div class="col-md-6"><label class="form-label">สิ้นสุด</label><input class="form-control" type="datetime-local" name="end_at" required value="{{ act.end_at|inputdt if act else '' }}"></div>
+  </div>
+  <label class="form-label">รายละเอียด</label><textarea class="form-control mb-3" name="description" rows="5">{{ act.description if act else '' }}</textarea>
+  <button class="btn btn-sta">บันทึก</button>
+</form></div></div>
+{% endblock %}

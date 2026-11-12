@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}ทีมงานของฉัน{% endblock %}
+{% block content %}
+{% call m.page_header('ทีมงานและชั่วโมงกิจกรรมของฉัน', 'ชั่วโมงสะสม ' ~ ('%.1f'|format(total)) ~ ' ชั่วโมง') %}{% endcall %}
+<div class="row g-3">
+<div class="col-lg-7"><div class="card"><div class="card-header">ใบสมัครทีมงาน</div><ul class="list-group list-group-flush">
+  {% for a in apps|sort(attribute='submitted_at', reverse=True) %}{% set s = staff_by_app.get(a.id) %}
+  <li class="list-group-item d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <span><a href="{{ url_for('activities.detail', aid=a.activity_id) }}">{{ acts[a.activity_id].title }}</a> · {{ pos[a.activity_position_id].name }}<div class="small text-secondary">{{ a.submitted_at|thaidate }}</div></span>
+    <span>{{ m.badge(a.status) }}{% if s and s.work_status %} {{ m.badge(s.work_status) }}{% endif %}</span></li>
+  {% else %}<li class="list-group-item">{{ m.empty('ยังไม่มีใบสมัคร') }}</li>{% endfor %}</ul></div></div>
+<div class="col-lg-5"><div class="card"><div class="card-header">ชั่วโมงกิจกรรม</div><ul class="list-group list-group-flush">
+  {% for h in hours %}<li class="list-group-item d-flex justify-content-between"><span>{{ acts[h.activity_id].title }}</span><strong>{{ h.hours }}</strong></li>
+  {% else %}<li class="list-group-item small text-secondary">ยังไม่มี</li>{% endfor %}</ul></div></div>
+</div>
+{% endblock %}

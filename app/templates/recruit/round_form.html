@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}รอบรับสมัคร{% endblock %}
+{% block content %}
+{% call m.page_header(('แก้ไขรอบ: ' ~ r.title) if r else 'เปิดรอบรับสมัครใหม่', 'ไม่ต้องอนุมัติก่อนเปิดรับ — เปิดได้เฉพาะตำแหน่งระดับกรรมการ/อนุกรรมการ') %}{% endcall %}
+{% set rules = r.eligibility_rules if r else {} %}
+<form method="post">{{ m.csrf() }}
+<div class="row g-3">
+<div class="col-lg-6">
+  <div class="card mb-3"><div class="card-header">ข้อมูลรอบ</div><div class="card-body">
+    <div class="mb-2"><label class="form-label">ชื่อรอบ</label><input class="form-control" name="title" required value="{{ r.title if r else '' }}"></div>
+    <div class="row g-2 mb-2">
+      <div class="col-6"><label class="form-label">ประเภท</label><select class="form-select" name="type" id="rtype">
+        <option value="COMMITTEE" {% if r and r.type == 'COMMITTEE' %}selected{% endif %}>กรรมการ</option>
+        <option value="SUBCOMMITTEE" {% if r and r.type == 'SUBCOMMITTEE' %}selected{% endif %}>อนุกรรมการ</option></select></div>
+      <div class="col-6"><label class="form-label">ปีการศึกษา</label><input class="form-control" type="number" name="academic_year" value="{{ r.academic_year if r else year }}"></div>
+      <div class="col-6"><label class="form-label">เปิดรับ</label><input class="form-control" type="datetime-local" name="open_at" value="{{ r.open_at|inputdt if r else '' }}"></div>
+      <div class="col-6"><label class="form-label">ปิดรับ</label><input class="form-control" type="datetime-local" name="close_at" value="{{ r.close_at|inputdt if r else '' }}"></div>
+    </div>
+    <label class="form-label">รายละเอียด</label><textarea class="form-control" name="description" rows="4">{{ r.description if r else '' }}</textarea>
+  </div></div>
+  <div class="card mb-3"><div class="card-header">เกณฑ์คุณสมบัติ (ตรวจอัตโนมัติ)</div><div class="card-body">
+    <div class="row g-2 mb-2">
+      <div class="col-4"><label class="form-label small">ชั้นปีต่ำสุด</label><input class="form-control" type="number" name="min_year" value="{{ rules.min_year or '' }}"></div>
+      <div class="col-4"><label class="form-label small">ชั้นปีสูงสุด</label><input class="form-control" type="number" name="max_year" value="{{ rules.max_year or '' }}"></div>
+      <div class="col-4"><label class="form-label small">เกรดขั้นต่ำ</label><input class="form-control" type="number" step="0.01" name="min_gpa" value="{{ rules.min_gpa or '' }}"></div>
+    </div>
+    <label class="form-label small">จำกัดสาขา (ไม่เลือก = ทุกสาขา)</label>
+    <select class="form-select" name="programs" multiple size="5">{% for p in programs %}<option value="{{ p.id }}" {% if p.id in (rules.programs or []) %}selected{% endif %}>{{ p.id }} {{ p.name_th }}</option>{% endfor %}</select>
+  </div></div>
+</div>
+<div class="col-lg-6">
+  <div class="card mb-3"><div class="card-header">ตำแหน่งที่เปิดรับและโควตา</div><div class="card-body">
+    {% for p in positions %}
+    <div class="row g-2 align-items-center mb-2 pos-row" data-level="{{ p.level }}">
+      <div class="col-6 small">{{ p.name }}</div>
+      <div class="col-2"><input class="form-control form-control-sm" type="number" min="0" name="quota_{{ p.id }}" placeholder="0" value="{{ rps[p.id].quota if p.id in rps else '' }}"></div>
+      <div class="col-4"><input class="form-control form-control-sm" name="req_{{ p.id }}" placeholder="คุณสมบัติเพิ่มเติม" value="{{ rps[p.id].requirements if p.id in rps else '' }}"></div>
+    </div>{% endfor %}
+  </div></div>
+  <div class="card"><div class="card-header">เกณฑ์ให้คะแนนสัมภาษณ์</div><div class="card-body" id="crits">
+    {% for c in (crits or [{'name':'บุคลิกภาพและการสื่อสาร','max_score':10,'weight':1},{'name':'ความรู้ความเข้าใจงานสโมสร','max_score':10,'weight':1},{'name':'ทัศนคติและความรับผิดชอบ','max_score':10,'weight':1}]) %}
+    <div class="row g-2 mb-2"><div class="col-6"><input class="form-control form-control-sm" name="crit_name" value="{{ c.name }}" placeholder="ชื่อเกณฑ์"></div>
+      <div class="col-3"><input class="form-control form-control-sm" type="number" name="crit_max" value="{{ c.max_score }}" title="คะแนนเต็ม"></div>
+      <div class="col-3"><input class="form-control form-control-sm" type="number" step="0.1" name="crit_weight" value="{{ c.weight }}" title="น้ำหนัก"></div></div>
+    {% endfor %}
+    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addCrit()">+ เพิ่มเกณฑ์</button>
+    <div class="form-text">แก้เกณฑ์ได้จนกว่าจะมีการให้คะแนน</div>
+  </div></div>
+</div></div>
+<button class="btn btn-sta mt-3">บันทึก</button>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+const sel = document.getElementById('rtype');
+function filt(){ document.querySelectorAll('.pos-row').forEach(r => r.style.display = r.dataset.level === sel.value ? '' : 'none'); }
+sel.addEventListener('change', filt); filt();
+function addCrit(){ const box = document.getElementById('crits'); const row = box.querySelector('.row').cloneNode(true);
+  row.querySelectorAll('input').forEach(i => i.value = i.name === 'crit_weight' ? 1 : (i.name === 'crit_max' ? 10 : '')); box.insertBefore(row, box.querySelector('button')); }
+</script>
+{% endblock %}

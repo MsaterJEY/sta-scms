@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+instance/
+serviceAccount*.json
+sta-scms-firebase-adminsdk-fbsvc-4cbaa42349.json
+*-firebase-adminsdk-*.json
+.vercel
+.DS_Store
+.pytest_cache/

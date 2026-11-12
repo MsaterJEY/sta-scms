@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <meta name="max-file-mb" content="{{ config.MAX_FILE_MB }}">
+  <title>{% block title %}สโมสรนักศึกษา วทก.{% endblock %} | STA-SCMS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <link href="{{ url_for('static', filename='css/app.css') }}" rel="stylesheet">
+  {% block head %}{% endblock %}
+</head>
+<body>
+<nav class="navbar navbar-expand-lg navbar-dark bg-sta sticky-top shadow-sm">
+  <div class="container-xl">
+    <a class="navbar-brand d-flex align-items-center gap-2" href="{{ url_for('public.home') }}">
+      <i class="bi bi-flower1"></i><span class="fw-semibold">สโมสรนักศึกษา วทก.</span>
+    </a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav" aria-label="เมนู">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="nav">
+      <ul class="navbar-nav me-auto">
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('public.news') }}">ข่าวประกาศ</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('public.faq') }}">คำถามที่พบบ่อย</a></li>
+        {% if me %}
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('dashboard.index') }}">หน้าของฉัน</a></li>
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">บริการ</a>
+          <ul class="dropdown-menu">
+            {% if me.account_type == 'SCI' or can('rec.manage') or can('rec.score') or can('rec.approve') %}
+            <li><a class="dropdown-item" href="{{ url_for('recruit.index') }}"><i class="bi bi-person-badge me-2"></i>รับสมัครกรรมการ</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('activities.index') }}"><i class="bi bi-calendar-event me-2"></i>กิจกรรมและทีมงาน</a></li>
+            {% endif %}
+            <li><a class="dropdown-item" href="{{ url_for('equipment.catalog') }}"><i class="bi bi-box-seam me-2"></i>ยืม-คืนอุปกรณ์</a></li>
+            {% if me.account_type == 'SCI' or can('tkt.handle') or can('tkt.view') or can('tkt.escalated') %}
+            <li><a class="dropdown-item" href="{{ url_for('tickets.index') }}"><i class="bi bi-chat-left-text me-2"></i>คำร้อง/ร้องเรียน</a></li>
+            {% endif %}
+          </ul>
+        </li>
+        {% set staff_menu = can('rec.approve') or can('act.approve') or can('eqp.self_approve') or can('eqp.manage') or can('ann.manage') or can('faq.manage') or can('report.view') or can('eqp.report') or can('delegation.manage') or can('doc.upload') or 'BOARD' in my_roles or 'COMM' in my_roles or 'SUBCOMM' in my_roles or 'ADVISOR' in my_roles %}
+        {% if staff_menu %}
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">งานสโมสร</a>
+          <ul class="dropdown-menu">
+            {% if can('rec.approve') or can('act.approve') or can('eqp.self_approve') %}
+            <li><a class="dropdown-item" href="{{ url_for('dashboard.approvals') }}"><i class="bi bi-check2-square me-2"></i>รายการรออนุมัติ</a></li>{% endif %}
+            {% if can('eqp.manage') %}
+            <li><h6 class="dropdown-header">ฝ่ายอุปกรณ์</h6></li>
+            <li><a class="dropdown-item" href="{{ url_for('equipment.requests_list') }}">คำขอยืม</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('equipment.manage') }}">ทะเบียนอุปกรณ์</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('equipment.maintenance') }}">ซ่อมบำรุง</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('equipment.fines') }}">ค่าชดใช้</a></li>{% endif %}
+            {% if can('ann.manage') or can('faq.manage') %}
+            <li><h6 class="dropdown-header">ประชาสัมพันธ์</h6></li>
+            {% if can('ann.manage') %}<li><a class="dropdown-item" href="{{ url_for('announcements.manage') }}">จัดการประกาศ</a></li>{% endif %}
+            {% if can('faq.manage') %}<li><a class="dropdown-item" href="{{ url_for('announcements.faq_manage') }}">จัดการ FAQ</a></li>{% endif %}
+            {% endif %}
+            <li><h6 class="dropdown-header">อื่น ๆ</h6></li>
+            <li><a class="dropdown-item" href="{{ url_for('documents.index') }}">เอกสาร</a></li>
+            {% if can('report.view') or can('eqp.report') or can('rec.manage') or can('act.manage') %}
+            <li><a class="dropdown-item" href="{{ url_for('reports.index') }}">รายงานและสถิติ</a></li>{% endif %}
+            {% if can('delegation.manage') %}
+            <li><a class="dropdown-item" href="{{ url_for('admin.delegations') }}">มอบสิทธิ์คัดกรอง</a></li>{% endif %}
+            {% if can('audit.view') %}
+            <li><a class="dropdown-item" href="{{ url_for('admin.audit_log') }}">Audit Log</a></li>{% endif %}
+          </ul>
+        </li>
+        {% endif %}
+        {% if can('admin.manage') %}
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">ผู้ดูแลระบบ</a>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="{{ url_for('admin.users') }}">บัญชีผู้ใช้</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('admin.holders') }}">ผู้ถือตำแหน่งตามวาระ</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('admin.positions') }}">กองและตำแหน่ง</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('admin.years') }}">ปีการศึกษา</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('admin.programs') }}">ตารางสาขา</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('admin.permissions') }}">สิทธิ์</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('admin.system_settings') }}">ตั้งค่าระบบ</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('admin.audit_log') }}">Audit Log</a></li>
+          </ul>
+        </li>
+        {% endif %}
+        {% endif %}
+      </ul>
+      <ul class="navbar-nav">
+        {% if me %}
+        <li class="nav-item">
+          <a class="nav-link position-relative" href="{{ url_for('dashboard.notifications') }}" aria-label="แจ้งเตือน">
+            <i class="bi bi-bell"></i>{% if unread_count %}<span class="badge rounded-pill bg-danger ms-1">{{ unread_count }}</span>{% endif %}
+          </a>
+        </li>
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown"><i class="bi bi-person-circle me-1"></i>{{ me.first_name or me.email }}</a>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><a class="dropdown-item" href="{{ url_for('auth.profile') }}">ข้อมูลของฉัน</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li>
+              <form method="post" action="{{ url_for('auth.logout') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="dropdown-item text-danger">ออกจากระบบ</button>
+              </form>
+            </li>
+          </ul>
+        </li>
+        {% else %}
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('auth.login') }}">เข้าสู่ระบบ</a></li>
+        <li class="nav-item"><a class="btn btn-light btn-sm ms-lg-2 mt-1" href="{{ url_for('auth.register') }}">ลงทะเบียน</a></li>
+        {% endif %}
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<main class="container-xl py-4">
+  {% if db_backend == 'local' %}
+  <div class="alert alert-warning py-2 small"><i class="bi bi-exclamation-triangle me-1"></i>โหมดพัฒนา: ใช้ฐานข้อมูลไฟล์ในเครื่อง (ยังไม่ได้ตั้งค่า FIREBASE_CREDENTIALS)</div>
+  {% endif %}
+  {% with msgs = get_flashed_messages(with_categories=true) %}
+    {% for cat, m in msgs %}
+    <div class="alert alert-{{ cat }} alert-dismissible fade show" role="alert">{{ m }}
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="ปิด"></button></div>
+    {% endfor %}
+  {% endwith %}
+  {% block content %}{% endblock %}
+</main>
+
+<footer class="border-top py-4 mt-5 small text-secondary">
+  <div class="container-xl d-flex flex-wrap justify-content-between gap-2">
+    <span>ระบบบริหารจัดการสโมสรนักศึกษา คณะวิทยาศาสตร์เทคโนโลยีและการเกษตร มหาวิทยาลัยราชภัฏยะลา</span>
+    <span>STA-SCMS</span>
+  </div>
+</footer>
+
+<div class="toast-container position-fixed bottom-0 end-0 p-3">
+  <div id="appToast" class="toast align-items-center text-bg-dark border-0" role="status" aria-live="polite">
+    <div class="d-flex"><div class="toast-body" id="appToastBody"></div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="ปิด"></button></div>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

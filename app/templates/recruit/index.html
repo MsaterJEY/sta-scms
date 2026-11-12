@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}รับสมัครกรรมการ{% endblock %}
+{% block content %}
+{% call m.page_header('รับสมัครกรรมการ / อนุกรรมการ') %}
+<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('recruit.my') }}">ใบสมัครของฉัน</a>
+{% if can('rec.manage') %}<a class="btn btn-sm btn-sta" href="{{ url_for('recruit.round_form') }}"><i class="bi bi-plus"></i> เปิดรอบใหม่</a>{% endif %}
+{% endcall %}
+<div class="row g-3">
+{% for r in rounds %}
+<div class="col-md-6 col-lg-4"><a class="card h-100 text-decoration-none text-body" href="{{ url_for('recruit.detail', rid=r.id) }}"><div class="card-body">
+  <div class="d-flex justify-content-between mb-1"><span class="badge text-bg-light">{{ 'กรรมการ' if r.type == 'COMMITTEE' else 'อนุกรรมการ' }} · {{ r.academic_year }}</span>
+    {% if r.is_open %}<span class="badge text-bg-success">กำลังเปิดรับ</span>{% else %}{{ m.badge(r.status) }}{% endif %}</div>
+  <div class="fw-semibold">{{ r.title }}</div>
+  <div class="small text-secondary mt-1">{{ r.open_at|thaidate }} – {{ r.close_at|thaidate }}</div>
+</div></a></div>
+{% else %}<div class="col-12">{{ m.empty('ยังไม่มีรอบรับสมัคร') }}</div>{% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}ใบสมัครของฉัน{% endblock %}
+{% block content %}
+{% call m.page_header('ใบสมัครกรรมการ/อนุกรรมการของฉัน') %}{% endcall %}
+{% if results %}
+<div class="card mb-3"><div class="card-header">ผลการคัดเลือก</div><ul class="list-group list-group-flush">
+  {% for x in results %}
+  <li class="list-group-item d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <span>{{ x.round.title }} — <strong>{{ x.position.name }}</strong> {{ m.badge(x.result) }} {% if x.confirm_status %}{{ m.badge(x.confirm_status) }}{% endif %}</span>
+    {% if x.result == 'PASS' and not x.confirm_status %}
+    <form method="post" class="d-flex gap-2">{{ m.csrf() }}<input type="hidden" name="result_id" value="{{ x.id }}">
+      <button name="action" value="confirm" class="btn btn-sm btn-success" data-confirm="ยืนยันรับตำแหน่ง?">ยืนยันสิทธิ์</button>
+      <button name="action" value="decline" class="btn btn-sm btn-outline-danger" data-confirm="สละสิทธิ์? เมื่อสละแล้วจะเลื่อนผู้สำรองแทน">สละสิทธิ์</button></form>{% endif %}
+  </li>{% endfor %}</ul></div>
+{% endif %}
+<div class="card"><div class="card-header">ใบสมัครทั้งหมด</div><ul class="list-group list-group-flush">
+  {% for a in apps|sort(attribute='submitted_at', reverse=True) %}
+  <a class="list-group-item list-group-item-action d-flex justify-content-between" href="{{ url_for('recruit.detail', rid=a.round_id) }}">
+    <span>{{ rounds[a.round_id].title }}<div class="small text-secondary">ส่งเมื่อ {{ a.submitted_at|thaidate }}</div></span>{{ m.badge(a.status) }}</a>
+  {% else %}<li class="list-group-item">{{ m.empty('ยังไม่มีใบสมัคร') }}</li>{% endfor %}</ul></div>
+{% endblock %}
