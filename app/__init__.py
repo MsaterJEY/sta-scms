@@ -18,9 +18,9 @@ def create_app(config_object=Config, **overrides):
     from . import exports, rbac, utils
     from .services import display_name
     from .views import (activities, admin, announcements, auth, cron, dashboard, documents, equipment,
-                        public, recruitment, reports, tickets)
+                        public, recruitment, reports, team, tickets)
 
-    for mod in (public, auth, dashboard, admin, recruitment, activities, equipment, tickets,
+    for mod in (public, auth, dashboard, admin, recruitment, activities, team, equipment, tickets,
                 announcements, documents, reports, cron):
         app.register_blueprint(mod.bp)
     app.register_blueprint(exports.bp)

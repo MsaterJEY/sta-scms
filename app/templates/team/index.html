@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}รับสมัครทีมงานกิจกรรม{% endblock %}
+{% block content %}
+{% call m.page_header('รับสมัครทีมงานดำเนินกิจกรรม', 'เลือกกิจกรรมและตำแหน่งที่สนใจ แล้วยื่นใบสมัครได้เลย') %}
+{% if me %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('team.my') }}"><i class="bi bi-clipboard-check"></i> ใบสมัครของฉัน</a>{% endif %}
+{% if manager %}<a class="btn btn-sm btn-sta" href="{{ url_for('team.manage') }}"><i class="bi bi-gear"></i> จัดการกิจกรรม</a>{% endif %}
+{% endcall %}
+
+<h2 class="section-title mb-3">กิจกรรมที่เปิดรับสมัคร</h2>
+<div class="row g-3">
+  {% for ev in events %}
+  <div class="col-md-6 col-lg-4">
+    <a class="card team-card h-100 text-decoration-none text-body" href="{{ url_for('team.detail', eid=ev.id) }}">
+      <div class="team-thumb">
+        {% if ev.cover_path %}<img src="{{ url_for('team.cover', eid=ev.id) }}" alt="" loading="lazy">{% else %}<i class="bi bi-calendar-event"></i>{% endif %}
+        <span class="badge text-bg-light team-badge-l"><i class="bi bi-circle-fill text-success small"></i> เปิดรับสมัคร</span>
+        {% if ev.is_pinned %}<span class="badge text-bg-warning team-badge-r"><i class="bi bi-pin-angle-fill"></i> ปักหมุด</span>
+        {% elif ev.is_latest %}<span class="badge text-bg-info team-badge-r">ล่าสุด</span>{% endif %}
+      </div>
+      <div class="card-body">
+        <div class="fw-bold mb-2">{{ ev.title }}</div>
+        <div class="small text-secondary"><i class="bi bi-calendar3 me-1"></i>{{ ev.dates }}</div>
+        {% if ev.location %}<div class="small text-secondary"><i class="bi bi-geo-alt me-1"></i>{{ ev.location }}</div>{% endif %}
+        {% if ev.note %}<div class="small text-secondary"><i class="bi bi-info-circle me-1"></i>หมายเหตุ: {{ ev.note }}</div>{% endif %}
+        <div class="team-tags">
+          {% for p in ev.open_positions %}
+          <span class="badge rounded-pill team-tag">{{ p.name }}{{ {'M': ' ช', 'F': ' ญ', 'SPLIT': ' ช/ญ'}.get(p.gender, '') }}{{ {'COMM': ' [กมก]', 'SUBCOMM': ' [อนุ]'}.get(p.applicant_type, '') }}</span>
+          {% endfor %}
+          {% if ev.position_count and ev.full_count == ev.position_count %}<span class="badge rounded-pill text-bg-danger">รับครบทุกตำแหน่งแล้ว</span>
+          {% elif ev.full_count %}<span class="badge rounded-pill text-bg-warning">บางตำแหน่งรับครบแล้ว</span>{% endif %}
+        </div>
+      </div>
+      <div class="card-footer d-flex justify-content-between small text-secondary">
+        <span><i class="bi bi-people me-1"></i>ผู้สมัครแล้ว {{ ev.applicant_count }} คน</span><i class="bi bi-chevron-right"></i>
+      </div>
+    </a>
+  </div>
+  {% else %}<div class="col-12">{{ m.empty('ยังไม่มีกิจกรรมที่เปิดรับสมัคร') }}</div>{% endfor %}
+</div>
+{% endblock %}

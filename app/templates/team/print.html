@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>รายงานสรุปผู้สมัคร - {{ ev.title }}</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  body { font-family: "TH SarabunPSK", "Sarabun", Arial, sans-serif; margin: 0; color: #111; }
+  .toolbar { position: sticky; top: 0; background: #f4f4f5; border-bottom: 1px solid #ddd; padding: 12px 24px; display: flex; gap: 10px; justify-content: center; }
+  .toolbar button { font: inherit; font-size: 1rem; padding: 8px 18px; border-radius: 8px; border: 1px solid #ccc; background: #fff; cursor: pointer; }
+  .toolbar button.primary { background: #1f6f4a; color: #fff; border-color: #1f6f4a; }
+  .sheet { max-width: 820px; margin: 24px auto; padding: 0 32px 32px; }
+  h1 { font-size: 22pt; text-align: center; margin: 0 0 6px; }
+  .event-name { font-size: 18pt; font-weight: 700; text-align: center; margin: 0 0 6px; }
+  .total-count { font-size: 14pt; text-align: center; margin: 0 0 20px; }
+  .group-title { font-size: 16pt; margin: 18px 0 8px; }
+  table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 14pt; margin-bottom: 6px; }
+  th, td { border: 1px solid #333; padding: 5px 8px; text-align: left; overflow-wrap: break-word; }
+  th { font-size: 13pt; font-weight: 400; }
+  .c-no { width: 8%; } .c-id { width: 16%; } .c-name { width: 30%; } .c-year { width: 10%; } .c-div { width: 24%; } .c-status { width: 12%; }
+  @media print { .toolbar { display: none; } @page { size: A4 portrait; margin: 18mm; } .sheet { margin: 0; padding: 0; max-width: none; } }
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <button class="primary" type="button" onclick="window.print()">พิมพ์</button>
+  <button type="button" onclick="exportWord()">ส่งออกเป็น Word</button>
+</div>
+<div class="sheet" id="sheet">
+  <h1>รายงานสรุปผู้สมัคร</h1>
+  <div class="event-name">{{ ev.title }}</div>
+  <div class="total-count">จำนวนผู้สมัครทั้งหมด {{ total }} คน</div>
+  {% for key, items in groups %}
+  <p class="group-title"><b>{{ key[0] }}</b> : {{ key[1] }}</p>
+  <table border="1" cellpadding="4" cellspacing="0" width="100%">
+    <colgroup><col class="c-no" width="8%"><col class="c-id" width="16%"><col class="c-name" width="30%"><col class="c-year" width="10%"><col class="c-div" width="24%"><col class="c-status" width="12%"></colgroup>
+    <thead><tr><th>ลำดับ</th><th>รหัสนักศึกษา</th><th>ชื่อ-นามสกุล</th><th>ชั้นปี</th><th>กองต้นสังกัด</th><th>สถานะ</th></tr></thead>
+    <tbody>
+    {% for a in items %}
+    <tr><td>{{ loop.index }}</td><td>{{ a.student_code or '' }}</td><td>{{ a.full_name }}</td><td>{{ a.year_level or '' }}</td>
+      <td>{{ a.home_division if a.home_division != '-' else '' }}</td><td>{{ '' if a.status == 'PENDING' else TEAM_APP_STATUS.get(a.status, (a.status,))[0] }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p class="total-count">ไม่มีผู้สมัครตามเงื่อนไขนี้</p>{% endfor %}
+</div>
+<script>
+function exportWord() {
+  var css = document.querySelector('style').textContent;
+  var doc = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">'
+    + '<head><meta charset="utf-8"><title>รายงานสรุปผู้สมัคร</title><style>' + css + '</style></head><body>'
+    + document.getElementById('sheet').outerHTML + '</body></html>';
+  var link = document.createElement('a');
+  link.href = URL.createObjectURL(new Blob(['﻿', doc], { type: 'application/msword' }));
+  link.download = {{ ('รายงานสรุปผู้สมัคร_' ~ ev.title ~ '.doc')|tojson }};
+  document.body.appendChild(link); link.click(); link.remove();
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}จัดการรับสมัครทีมงาน{% endblock %}
+{% block content %}
+{% call m.page_header('จัดการกิจกรรมรับสมัครทีมงาน', 'สร้างและจัดการกิจกรรมรับสมัครทีมงาน') %}
+<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('team.index') }}"><i class="bi bi-eye"></i> มุมมองผู้สมัคร</a>
+<a class="btn btn-sm btn-sta" href="{{ url_for('team.form') }}"><i class="bi bi-plus"></i> สร้างกิจกรรม</a>
+{% endcall %}
+
+<div class="row g-3 mb-3">
+  {% for label, num in [('กิจกรรมทั้งหมด', total), ('เปิดรับสมัคร', stats.OPEN), ('รอเปิดรับสมัคร', stats.WAITING), ('ปิดรับสมัครแล้ว', stats.CLOSED)] %}
+  <div class="col-6 col-md-3"><div class="card stat"><div class="card-body"><div class="small text-secondary">{{ label }}</div><div class="num">{{ num }}</div></div></div></div>
+  {% endfor %}
+</div>
+
+<form class="row g-2 mb-3">
+  <div class="col-12 col-md-5"><input class="form-control" name="q" value="{{ q }}" placeholder="ค้นหากิจกรรม..." aria-label="ค้นหากิจกรรม"></div>
+  <div class="col-6 col-md-3"><select class="form-select" name="status" aria-label="สถานะ"><option value="">สถานะทั้งหมด</option>
+    {% for k, v in TEAM_EVENT_STATUS.items() %}<option value="{{ k }}" {% if status == k %}selected{% endif %}>{{ v[0] }}</option>{% endfor %}</select></div>
+  <div class="col-6 col-md-2"><select class="form-select" name="sort" aria-label="เรียงลำดับ">
+    {% for k, l in [('latest', 'เรียงล่าสุด'), ('oldest', 'เรียงเก่าสุด'), ('name', 'เรียงชื่อ ก-ฮ'), ('applicants', 'ผู้สมัครมากสุด')] %}<option value="{{ k }}" {% if sort == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+  <div class="col-12 col-md-2 d-grid"><button class="btn btn-sta">ค้นหา</button></div>
+</form>
+<div class="small text-secondary mb-2">แสดง {{ shown }} จาก {{ total }} กิจกรรม</div>
+
+{% for key, events in groups %}{% if events %}
+<h2 class="h6 mt-4"><span class="badge text-bg-{{ TEAM_EVENT_STATUS[key][1] }}">{{ TEAM_EVENT_STATUS[key][0] }}</span> <span class="text-secondary">{{ events|length }}</span></h2>
+{% for ev in events %}
+<div class="card mb-2"><div class="card-body d-flex flex-wrap gap-3">
+  <div class="team-thumb team-thumb-sm">{% if ev.cover_path %}<img src="{{ url_for('team.cover', eid=ev.id) }}" alt="" loading="lazy">{% else %}<i class="bi bi-calendar-event"></i>{% endif %}</div>
+  <div class="flex-grow-1" style="min-width:220px">
+    <div class="fw-semibold">{% if ev.is_pinned %}<i class="bi bi-pin-angle-fill text-warning" title="ปักหมุด"></i> {% endif %}<a class="text-body text-decoration-none" href="{{ url_for('team.detail', eid=ev.id) }}">{{ ev.title }}</a></div>
+    <div class="small text-secondary"><i class="bi bi-calendar3 me-1"></i>{{ ev.dates }}{% if ev.location %}<i class="bi bi-geo-alt ms-2 me-1"></i>{{ ev.location }}{% endif %}</div>
+    <div class="small text-secondary"><i class="bi bi-clock me-1"></i>สร้างเมื่อ {{ ev.created_at|thaidate }}</div>
+    <div class="small fw-semibold text-sta"><i class="bi bi-people me-1"></i>ผู้สมัคร {{ ev.applicant_count }} คน{% if ev.pending_count %} <span class="badge text-bg-warning">รอพิจารณา {{ ev.pending_count }}</span>{% endif %}</div>
+  </div>
+  <div class="d-flex flex-wrap gap-1 align-items-start">
+    <a class="btn btn-sm btn-sta" href="{{ url_for('team.applicants', eid=ev.id) }}"><i class="bi bi-people"></i> ผู้สมัคร</a>
+    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('team.form', eid=ev.id) }}"><i class="bi bi-pencil"></i> แก้ไข</a>
+    <form method="post" action="{{ url_for('team.event_status', eid=ev.id) }}" class="d-flex flex-wrap gap-1">{{ m.csrf() }}
+      {% if ev.status == 'OPEN' %}<button name="action" value="CLOSED" class="btn btn-sm btn-outline-warning"><i class="bi bi-pause-circle"></i> ปิดรับสมัคร</button>
+      {% else %}<button name="action" value="OPEN" class="btn btn-sm btn-outline-success"><i class="bi bi-play-circle"></i> {{ 'เปิดรับสมัครตอนนี้' if ev.status == 'WAITING' else 'เปิดรับสมัครอีกครั้ง' }}</button>{% endif %}
+      {% if can('team.delete') %}
+      <button name="action" value="pin" class="btn btn-sm btn-outline-secondary" title="{{ 'ยกเลิกปักหมุด' if ev.is_pinned else 'ปักหมุด' }}" aria-label="{{ 'ยกเลิกปักหมุด' if ev.is_pinned else 'ปักหมุด' }}"><i class="bi bi-pin-angle{{ '-fill' if ev.is_pinned else '' }}"></i></button>
+      <button name="action" value="delete" class="btn btn-sm btn-outline-danger" title="ลบกิจกรรม" aria-label="ลบกิจกรรม"
+              data-confirm="ลบกิจกรรม &quot;{{ ev.title }}&quot; พร้อมตำแหน่งและใบสมัครทั้งหมด? การลบไม่สามารถย้อนกลับได้"><i class="bi bi-trash"></i></button>
+      {% endif %}
+    </form>
+  </div>
+</div></div>
+{% endfor %}
+{% endif %}{% endfor %}
+{% if not shown %}{{ m.empty('ไม่พบกิจกรรมที่ตรงกับเงื่อนไข') }}{% endif %}
+{% endblock %}

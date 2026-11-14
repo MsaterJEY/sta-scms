@@ -23,7 +23,7 @@
   {% else %}{{ m.empty('ยังไม่มีประกาศ') }}{% endfor %}
 {% endmacro %}
 
-{% set reg_url = url_for('auth.register') if not me else (url_for('activities.index') if me.account_type == 'SCI' else url_for('dashboard.index')) %}
+{% set reg_url = url_for('auth.register') if not me else url_for('team.index') %}
 
 {% block content %}
 <section class="hero-wrap mb-4">
@@ -99,10 +99,14 @@
       </div>
     </div>
 
-    {% if rounds or open_positions %}
+    {% if rounds or open_positions or team_events %}
     <div class="card">
       <div class="card-header" data-i18n="home.open">กำลังเปิดรับสมัคร</div>
       <ul class="list-group list-group-flush">
+        {% for e in team_events[:5] %}
+        <li class="list-group-item"><a href="{{ url_for('team.detail', eid=e.id) }}">ทีมงานกิจกรรม: {{ e.title }}</a>
+          <div class="small text-secondary">จัดงาน {{ e.start_date|thaiday }}</div></li>
+        {% endfor %}
         {% for r in rounds %}
         <li class="list-group-item"><a href="{{ url_for('recruit.detail', rid=r.id) }}">{{ r.title }}</a>
           <div class="small text-secondary">ปิดรับ {{ r.close_at|thaidate }}</div></li>

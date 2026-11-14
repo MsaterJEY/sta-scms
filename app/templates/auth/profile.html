@@ -28,7 +28,10 @@
     <div class="card mb-3"><div class="card-header">ช่องทางติดต่อ</div><div class="card-body">
       <form method="post">{{ m.csrf() }}<input type="hidden" name="action" value="contact">
         <div class="mb-2"><label class="form-label">เบอร์โทร</label><input class="form-control" name="phone" value="{{ u.phone or '' }}"></div>
-        <div class="mb-3"><label class="form-label">LINE ID</label><input class="form-control" name="line_id" value="{{ u.line_id or '' }}"></div>
+        <div class="mb-2"><label class="form-label">LINE ID</label><input class="form-control" name="line_id" value="{{ u.line_id or '' }}"></div>
+        <div class="mb-3"><label class="form-label" for="gender">เพศ <span class="text-secondary small">(ใช้ตรวจเงื่อนไขตำแหน่งทีมงานที่จำกัดเพศ)</span></label>
+          <select class="form-select" id="gender" name="gender"><option value="">ไม่ระบุ</option>
+            {% for k, l in [('M', 'ชาย'), ('F', 'หญิง')] %}<option value="{{ k }}" {% if u.gender == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
         <button class="btn btn-sta">บันทึก</button></form></div></div>
     <div class="card mb-3"><div class="card-header">เปลี่ยนรหัสผ่าน</div><div class="card-body">
       <form method="post">{{ m.csrf() }}<input type="hidden" name="action" value="password">

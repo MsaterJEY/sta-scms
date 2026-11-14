@@ -25,6 +25,8 @@ PERMISSIONS = {
     "act.manage": ("สร้าง/จัดการกิจกรรมของกองตน", ["DIV_VP", "DIV_SEC"], False),
     "act.screen": ("คัดกรองใบสมัครทีมงาน (ต้องได้รับมอบหมาย)", ["PERSONNEL_HEAD"], False),
     "act.approve": ("อนุมัติผลคัดเลือกทีมงาน (ANY)", ["ADMIN_VP", "ADMIN_SEC"], True),
+    "team.manage": ("สร้าง/จัดการกิจกรรมรับสมัครทีมงาน และพิจารณาผู้สมัคร", ["PERSONNEL_HEAD", "DIV_VP", "DIV_SEC", "SYS_ADMIN"], False),
+    "team.delete": ("ลบกิจกรรม/ใบสมัคร และปักหมุดกิจกรรมรับสมัครทีมงาน", ["PERSONNEL_HEAD", "ADMIN_VP", "SYS_ADMIN"], False),
     "eqp.manage": ("จัดการอุปกรณ์ อนุมัติ จ่าย รับคืน ค่าชดใช้ ซ่อม เปิดดูเอกสารผู้ยืม", ["EQUIP_HEAD"], True),
     "eqp.self_approve": ("อนุมัติ/ยืนยันรับคืน เมื่อผู้ขอคือหัวหน้าฝ่ายอุปกรณ์", ["ADMIN_VP"], True),
     "eqp.report": ("ดูรายงานอุปกรณ์ (อ่านอย่างเดียว)", ["PRES", "ADVISOR", "EQUIP_HEAD"], False),

@@ -425,6 +425,54 @@ with app.app_context():
     get_ok(stu, "/app/notifications")
     check(len(repo().all("audit_logs")) > 20, "audit logs written")
 
+    print("== team recruitment (TEAM)")
+    ph = client_for("406765006")
+    guest = app.test_client()  # pub ล็อกอินค้างจากขั้นลงทะเบียนแล้ว
+    r = ph.post("/team/manage/new", data={"title": "งานทดสอบทีม", "start_date": "2026-12-01"})
+    tev = repo().where("team_events", title="งานทดสอบทีม")[0]
+    tid = tev["id"]
+    check(r.status_code == 302 and tev["status"] == "WAITING", "create team event (waiting)")
+    check(guest.get(f"/team/{tid}").status_code == 404, "waiting event hidden from public")
+    ph.post(f"/team/manage/{tid}/status", data={"action": "OPEN"})
+    check(repo().get("team_events", tid)["status"] == "WAITING", "cannot open without positions")
+    ph.post(f"/team/manage/{tid}/positions", data={"name": "พิธีกร", "division_id": "ADMIN", "quota": "9", "applicant_type": "ALL",
+                                                   "type_cap": "1", "comm_quota": "8", "sub_quota": "8", "gender": "ANY"})
+    check(not repo().where("team_positions", event_id=tid), "type caps over quota rejected")
+    ph.post(f"/team/manage/{tid}/positions", data={"name": "พิธีกร", "division_id": "ADMIN", "quota": "1", "applicant_type": "ALL",
+                                                   "gender": "M", "restrict": ["ADMIN"]})
+    tp = repo().where("team_positions", event_id=tid)[0]
+    ph.post(f"/team/manage/{tid}/status", data={"action": "OPEN"})
+    check(repo().get("team_events", tid)["status"] == "OPEN", "open team event")
+    check("งานทดสอบทีม" in guest.get("/team/").get_data(as_text=True), "public sees open team event")
+    check("กรุณาเข้าสู่ระบบก่อนสมัคร" in get_ok(guest, f"/team/{tid}").get_data(as_text=True), "guest must log in to apply")
+    check(guest.post(f"/team/position/{tp['id']}/apply").status_code == 302 and not repo().where("team_applications", event_id=tid),
+          "guest cannot apply")
+    ph.post(f"/team/position/{tp['id']}/apply", data={})
+    check(not repo().where("team_applications", event_id=tid), "gender required for gender-limited position")
+    acv = client_for("406765009")
+    acv.post(f"/team/position/{tp['id']}/apply", data={"gender": "M"})
+    check(not repo().where("team_applications", event_id=tid), "other division blocked by restriction")
+    ph.post(f"/team/position/{tp['id']}/apply", data={"gender": "M"})
+    tapps = repo().where("team_applications", event_id=tid)
+    check(len(tapps) == 1 and tapps[0]["member_type"] == "COMM" and tapps[0]["home_division_id"] == "ADMIN", "member applies")
+    ph.post(f"/team/position/{tp['id']}/apply", data={})
+    eqh.post(f"/team/position/{tp['id']}/apply", data={"gender": "M"})
+    check(len(repo().where("team_applications", event_id=tid)) == 1, "duplicate and over-quota applications rejected")
+    ph.post(f"/team/application/{tapps[0]['id']}/status", data={"action": "APPROVED"})
+    check(repo().get("team_applications", tapps[0]["id"])["status"] == "APPROVED", "approve applicant")
+    ph.post(f"/team/manage/{tid}/applicants/add", data={"full_name": "คนนอก ทดสอบ", "position_id": tp["id"]})
+    check(len(repo().where("team_applications", event_id=tid)) == 2, "admin adds outsider past quota")
+    for u in ["/team/manage", f"/team/manage/{tid}/edit", f"/team/manage/{tid}/applicants?status=active", f"/team/manage/{tid}/print",
+              "/team/my", f"/team/{tid}"]:
+        get_ok(ph, u, f"{u} as team manager")
+    check("คนนอก ทดสอบ" in ph.get(f"/team/manage/{tid}/list.txt").get_data(as_text=True), "copy list text")
+    r = ph.get(f"/export/team_applicants?fmt=tsv&event_id={tid}")
+    check(r.status_code == 200 and "คนนอก ทดสอบ" in r.get_data(as_text=True), "export team applicants")
+    check(client_for("406111011").get("/team/manage").status_code == 403, "non-manager cannot manage team events")
+    check(acv.post(f"/team/manage/{tid}/status", data={"action": "delete"}).status_code == 403, "delete needs team.delete")
+    ph.post(f"/team/manage/{tid}/status", data={"action": "delete"})
+    check(not repo().get("team_events", tid) and not repo().where("team_applications", event_id=tid), "delete event with its data")
+
     print("== login lockout")
     lc = app.test_client()
     for _ in range(5):

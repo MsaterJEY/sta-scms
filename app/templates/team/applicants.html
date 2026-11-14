@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}ผู้สมัครทีมงาน{% endblock %}
+{% block content %}
+{% call m.page_header('สรุปผู้สมัคร / จัดการผู้สมัคร') %}
+<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('team.form', eid=ev.id) }}"><i class="bi bi-pencil"></i> แก้ไขกิจกรรม</a>
+<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('team.manage') }}">กลับ</a>
+{% endcall %}
+
+<div class="card mb-3"><div class="card-body d-flex flex-wrap gap-3 align-items-center">
+  <div class="team-thumb team-thumb-sm">{% if ev.cover_path %}<img src="{{ url_for('team.cover', eid=ev.id) }}" alt="">{% else %}<i class="bi bi-calendar-event"></i>{% endif %}</div>
+  <div class="flex-grow-1">
+    <div class="fw-bold">{{ ev.title }} {% set st = TEAM_EVENT_STATUS.get(ev.status, (ev.status, 'secondary')) %}<span class="badge text-bg-{{ st[1] }}">{{ st[0] }}</span></div>
+    <div class="small text-secondary"><i class="bi bi-calendar3 me-1"></i>{{ dates }}{% if ev.location %}<i class="bi bi-geo-alt ms-2 me-1"></i>{{ ev.location }}{% endif %}</div>
+  </div>
+</div></div>
+
+<div class="row g-3 mb-3">
+  {% for label, num in [('ผู้สมัครทั้งหมด', total), ('ผ่านการคัดเลือก', stats.APPROVED), ('รอพิจารณา', stats.PENDING), ('ไม่ผ่าน', stats.REJECTED)] %}
+  <div class="col-6 col-md-3"><div class="card stat"><div class="card-body"><div class="small text-secondary">{{ label }}</div><div class="num">{{ num }}</div></div></div></div>
+  {% endfor %}
+</div>
+
+<div class="card mb-3"><div class="card-header">สรุปผู้สมัครแต่ละตำแหน่ง</div>
+  <div class="table-responsive"><table class="table table-sm mb-0">
+    <thead><tr><th>กอง</th><th>ตำแหน่ง</th><th>เงื่อนไข</th><th class="text-end">สมัครแล้ว/รับ</th></tr></thead>
+    <tbody>
+    {% for p in positions %}
+    <tr class="{{ 'table-danger' if p.full else '' }}">
+      <td class="small">{{ p.division_name }}</td><td>{{ p.name }}</td>
+      <td class="small text-secondary">{{ TEAM_TYPES[p.applicant_type] }} · {{ p.restrict_names|join(', ') if p.restrict_names else 'ทุกกอง' }} ·
+        {% if p.gender == 'SPLIT' %}ชาย {{ p.tally.M }}/{{ p.male_quota }} · หญิง {{ p.tally.F }}/{{ p.female_quota }}{% else %}{{ p.gender_text }}{% endif %}
+        {% if p.type_cap %} · กรรมการ {{ p.tally.COMM }}/{{ p.comm_quota }} · อนุกรรมการ {{ p.tally.SUBCOMM }}/{{ p.sub_quota }}{% endif %}</td>
+      <td class="text-end fw-semibold">{{ p.tally.count }}/{{ p.quota }}{% if p.full %} <span class="badge text-bg-danger">เต็มแล้ว</span>{% endif %}</td>
+    </tr>
+    {% else %}<tr><td colspan="4">{{ m.empty('ยังไม่มีตำแหน่ง') }}</td></tr>{% endfor %}
+    </tbody></table></div></div>
+
+<form class="row g-2 mb-2">
+  <div class="col-12 col-md-3"><input class="form-control" name="q" value="{{ filters.q }}" placeholder="ค้นหาชื่อ / รหัสนักศึกษา..." aria-label="ค้นหา"></div>
+  <div class="col-6 col-md-2"><select class="form-select" name="status" aria-label="สถานะ"><option value="">สถานะทั้งหมด</option>
+    <option value="active" {% if filters.status == 'active' %}selected{% endif %}>ทุกสถานะ ยกเว้นไม่ผ่าน</option>
+    {% for k, v in TEAM_APP_STATUS.items() %}<option value="{{ k }}" {% if filters.status == k %}selected{% endif %}>{{ v[0] }}</option>{% endfor %}</select></div>
+  <div class="col-6 col-md-2"><select class="form-select" name="div" aria-label="กอง"><option value="">ทุกกอง</option>
+    {% for d in div_options %}<option value="{{ d }}" {% if filters.div == d %}selected{% endif %}>{{ d }}</option>{% endfor %}</select></div>
+  <div class="col-6 col-md-2"><select class="form-select" name="pos" aria-label="ตำแหน่ง"><option value="">ตำแหน่งทั้งหมด</option>
+    {% for p in positions %}<option value="{{ p.id }}" {% if filters.pos == p.id %}selected{% endif %}>{{ p.name }}</option>{% endfor %}</select></div>
+  <div class="col-6 col-md-2"><select class="form-select" name="sort" aria-label="เรียงลำดับ">
+    {% for k, l in [('latest', 'เรียงล่าสุด'), ('oldest', 'เรียงเก่าสุด'), ('name', 'เรียงชื่อ ก-ฮ')] %}<option value="{{ k }}" {% if sort == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+  <div class="col-12 col-md-1 d-grid"><button class="btn btn-sta">กรอง</button></div>
+</form>
+
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+  <div class="fw-semibold">ผู้สมัครตามตัวกรอง ({{ rows|length }} คน)</div>
+  <div class="d-flex flex-wrap gap-2">
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#addModal" {% if not positions %}disabled{% endif %}><i class="bi bi-person-plus"></i> เพิ่มคนนอก</button>
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-copy-url="{{ url_for('team.applicants_text', eid=ev.id, **query) }}"><i class="bi bi-list-ol"></i> คัดลอกรายชื่อ</button>
+    <a class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener" href="{{ url_for('team.applicants_print', eid=ev.id, **query) }}"><i class="bi bi-printer"></i> พิมพ์สรุป</a>
+    {{ m.export_buttons('team_applicants', dict(query, event_id=ev.id)) }}
+  </div>
+</div>
+
+<div class="card"><div class="table-responsive"><table class="table table-sm mb-0">
+  <thead><tr><th>ผู้สมัคร</th><th>รหัสนักศึกษา</th><th>ชั้นปี</th><th>กองต้นสังกัด</th><th>ตำแหน่งที่สมัคร</th><th>สถานะ</th><th>วันที่สมัคร</th><th>จัดการ</th></tr></thead>
+  <tbody>
+  {% for a in rows %}{% set st = TEAM_APP_STATUS.get(a.status, (a.status, 'secondary')) %}
+  <tr>
+    <td><span class="fw-semibold">{{ a.full_name }}</span>
+      {% if a.member_type %}<span class="badge text-bg-light">{{ TEAM_MEMBERS[a.member_type] }}</span>{% endif %}
+      {% if a.added_by %}<span class="badge text-bg-info" title="แอดมินเพิ่มเอง">คนนอก</span>{% endif %}</td>
+    <td>{{ a.student_code or '-' }}</td><td>{{ a.year_level or '-' }}</td><td class="small">{{ a.home_division }}</td>
+    <td>{{ a.position_name }}<div class="small text-secondary">{{ a.division_name }}</div></td>
+    <td><span class="badge text-bg-{{ st[1] }}">{{ st[0] }}</span></td>
+    <td class="small text-secondary">{{ a.submitted_at|thaidate }}</td>
+    <td>
+      <form method="post" action="{{ url_for('team.application_status', aid=a.id) }}" class="d-flex gap-1">{{ m.csrf() }}
+        {% if a.status == 'PENDING' %}
+        <button name="action" value="APPROVED" class="btn btn-sm btn-success" title="ผ่านการคัดเลือก" aria-label="ผ่านการคัดเลือก"><i class="bi bi-check-lg"></i></button>
+        <button name="action" value="REJECTED" class="btn btn-sm btn-danger" title="ไม่ผ่าน" aria-label="ไม่ผ่าน"><i class="bi bi-x-lg"></i></button>
+        {% else %}
+        <button name="action" value="PENDING" class="btn btn-sm btn-outline-secondary" title="ยกเลิกผล กลับเป็นรอพิจารณา"><i class="bi bi-arrow-counterclockwise"></i> ยกเลิก</button>
+        {% endif %}
+        {% if can('team.delete') %}
+        <button name="action" value="delete" class="btn btn-sm btn-outline-danger" title="ลบประวัติการสมัคร" aria-label="ลบประวัติการสมัคร"
+                data-confirm="ลบประวัติการสมัครของ {{ a.full_name }}? การลบไม่สามารถย้อนกลับได้"><i class="bi bi-trash"></i></button>
+        {% endif %}
+      </form>
+    </td>
+  </tr>
+  {% else %}<tr><td colspan="8">{{ m.empty('ไม่พบผู้สมัครที่ตรงกับเงื่อนไข') }}</td></tr>{% endfor %}
+  </tbody></table></div></div>
+
+<div class="modal fade" id="addModal" tabindex="-1" aria-labelledby="addModalTitle" aria-hidden="true">
+  <div class="modal-dialog"><div class="modal-content">
+    <form method="post" action="{{ url_for('team.add_applicant', eid=ev.id) }}">{{ m.csrf() }}
+      <div class="modal-header"><h2 class="modal-title h5" id="addModalTitle"><i class="bi bi-person-plus"></i> เพิ่มคนนอก</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="ปิด"></button></div>
+      <div class="modal-body">
+        <p class="small text-secondary">สำหรับผู้ที่ไม่มีบัญชีหรือไม่ได้อยู่ในสโมสร แอดมินกรอกข้อมูลเอง โดยไม่ผ่านการตรวจสิทธิ์และโควตาอัตโนมัติ</p>
+        <div class="mb-2"><label class="form-label" for="maName">ชื่อ-นามสกุล <span class="text-danger">*</span></label><input class="form-control" id="maName" name="full_name" required></div>
+        <div class="row g-2 mb-2">
+          <div class="col-6"><label class="form-label" for="maCode">รหัสนักศึกษา</label><input class="form-control" id="maCode" name="student_code" placeholder="ถ้ามี"></div>
+          <div class="col-6"><label class="form-label" for="maYear">ชั้นปี</label><input class="form-control" id="maYear" name="year_level" placeholder="ถ้ามี"></div>
+        </div>
+        <div class="mb-2"><label class="form-label" for="maHome">กอง/ฝ่ายต้นสังกัด</label><input class="form-control" id="maHome" name="home_division" placeholder="ถ้ามี"></div>
+        <div class="mb-2"><label class="form-label" for="maPos">ตำแหน่งที่จะเพิ่ม <span class="text-danger">*</span></label>
+          <select class="form-select" id="maPos" name="position_id" required>{% for p in positions %}<option value="{{ p.id }}">{{ p.division_name }} › {{ p.name }}</option>{% endfor %}</select></div>
+        <div class="row g-2">
+          <div class="col-4"><label class="form-label" for="maType">ประเภท</label><select class="form-select" id="maType" name="member_type"><option value="">ไม่ระบุ</option>{% for k, l in TEAM_MEMBERS.items() %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></div>
+          <div class="col-4"><label class="form-label" for="maGender">เพศ</label><select class="form-select" id="maGender" name="gender"><option value="">ไม่ระบุ</option>{% for k, l in TEAM_GENDERS.items() %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></div>
+          <div class="col-4"><label class="form-label" for="maStatus">สถานะ</label><select class="form-select" id="maStatus" name="status"><option value="APPROVED">ผ่านการคัดเลือก</option><option value="PENDING">รอพิจารณา</option></select></div>
+        </div>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">ยกเลิก</button><button class="btn btn-sta">เพิ่มบุคคลนี้</button></div>
+    </form>
+  </div></div>
+</div>
+{% endblock %}

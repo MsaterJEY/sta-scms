@@ -157,6 +157,8 @@ def profile():
         action = request.form.get("action")
         if action == "contact":
             upd = {"phone": request.form.get("phone", "").strip(), "line_id": request.form.get("line_id", "").strip()}
+            if request.form.get("gender") in ("M", "F"):
+                upd["gender"] = request.form["gender"]
             repo().update("users", u["id"], upd)
             audit("user.update_contact", "user", u["id"])
             flash("บันทึกแล้ว", "success")

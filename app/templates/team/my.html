@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}ใบสมัครทีมงานของฉัน{% endblock %}
+
+{% macro status_badge(code) %}{% set st = TEAM_APP_STATUS.get(code, (code, 'secondary')) %}<span class="badge text-bg-{{ st[1] }}">{{ st[0] }}</span>{% endmacro %}
+
+{% block content %}
+{% call m.page_header('ใบสมัครทีมงานของฉัน', 'สถานะสมาชิก: ' ~ (TEAM_MEMBERS.get(info.type) or 'ยังไม่มีตำแหน่งในวาระปัจจุบัน') ~ (' · ' ~ div_names.get(info.division_id) if info.division_id else '')) %}
+<a class="btn btn-sm btn-sta" href="{{ url_for('team.index') }}">กิจกรรมที่เปิดรับสมัคร</a>
+{% endcall %}
+
+{% if apps %}
+{% set a = apps[0] %}{% set p = positions.get(a.position_id, {}) %}
+<h2 class="section-title mb-2">สถานะการลงทะเบียนล่าสุด</h2>
+<div class="card mb-4 border-start border-4 border-{{ TEAM_APP_STATUS.get(a.status, ('', 'secondary'))[1] }}">
+  <div class="card-body d-flex flex-wrap justify-content-between gap-3">
+    <div>
+      <div class="fw-bold fs-5 text-sta"><i class="bi bi-calendar-event me-1"></i>{{ events.get(a.event_id, {}).get('title') or '-' }}</div>
+      <div class="mt-1"><i class="bi bi-diagram-3 me-1 text-sta"></i>{{ div_names.get(p.get('division_id'), '-') }} › {{ p.get('name') or '-' }}</div>
+      <div class="small text-secondary mt-1"><i class="bi bi-clock me-1"></i>สมัครเมื่อ {{ a.submitted_at|thaidate }}</div>
+    </div>
+    <div class="fs-5">{{ status_badge(a.status) }}</div>
+  </div>
+</div>
+
+<h2 class="section-title mb-2">ประวัติการลงทะเบียน</h2>
+<div class="card"><div class="table-responsive"><table class="table mb-0">
+  <thead><tr><th>กิจกรรม</th><th>กอง</th><th>ตำแหน่ง</th><th>วันที่สมัคร</th><th>สถานะ</th></tr></thead>
+  <tbody>
+  {% for a in apps %}{% set p = positions.get(a.position_id, {}) %}{% set ev = events.get(a.event_id, {}) %}
+  <tr>
+    <td>{% if ev.get('id') %}<a href="{{ url_for('team.detail', eid=ev.id) }}">{{ ev.title }}</a>{% else %}-{% endif %}</td>
+    <td class="small">{{ div_names.get(p.get('division_id'), '-') }}</td>
+    <td>{{ p.get('name') or '-' }}</td>
+    <td class="small text-secondary">{{ a.submitted_at|thaidate }}</td>
+    <td>{{ status_badge(a.status) }}</td>
+  </tr>
+  {% endfor %}
+  </tbody></table></div></div>
+{% else %}
+{{ m.empty('คุณยังไม่เคยยื่นใบสมัครกิจกรรมใดเลย') }}
+{% endif %}
+{% endblock %}

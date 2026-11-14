@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}{{ ev.title }}{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb"><ol class="breadcrumb small">
+  <li class="breadcrumb-item"><a href="{{ url_for('team.index') }}">รับสมัครทีมงานกิจกรรม</a></li>
+  <li class="breadcrumb-item active">{{ ev.title }}</li></ol></nav>
+
+<div class="card mb-3 overflow-hidden">
+  {% if ev.cover_path %}<img class="team-cover" src="{{ url_for('team.cover', eid=ev.id) }}" alt="">{% endif %}
+  <div class="card-body">
+    <div class="d-flex flex-wrap justify-content-between gap-2">
+      <h1 class="h4 mb-1">{{ ev.title }}</h1>
+      <div class="d-flex gap-2 align-items-start">
+        {% set st = TEAM_EVENT_STATUS.get(ev.status, (ev.status, 'secondary')) %}<span class="badge text-bg-{{ st[1] }}">{{ st[0] }}</span>
+        {% if manager %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('team.form', eid=ev.id) }}"><i class="bi bi-pencil"></i> แก้ไข</a>
+        <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('team.applicants', eid=ev.id) }}"><i class="bi bi-people"></i> ผู้สมัคร</a>{% endif %}
+      </div>
+    </div>
+    <div class="small text-secondary"><i class="bi bi-calendar3 me-1"></i>{{ dates }}{% if ev.location %}<i class="bi bi-geo-alt ms-3 me-1"></i>{{ ev.location }}{% endif %}</div>
+    {% if ev.description %}<div class="pre-wrap mt-2">{{ ev.description }}</div>{% endif %}
+    {% if ev.note %}<div class="alert alert-warning py-2 small mt-2 mb-0"><i class="bi bi-info-circle me-1"></i>หมายเหตุ: {{ ev.note }}</div>{% endif %}
+  </div>
+</div>
+
+{% if not me %}
+<div class="alert alert-danger d-flex flex-wrap align-items-center justify-content-between gap-2">
+  <span><i class="bi bi-lock-fill me-1"></i>กรุณาเข้าสู่ระบบก่อนสมัคร</span>
+  <a class="btn btn-sm btn-sta" href="{{ url_for('auth.login', next=request.path) }}">เข้าสู่ระบบ</a>
+</div>
+{% elif active %}
+{% set st = TEAM_APP_STATUS.get(active.status, (active.status, 'secondary')) %}
+<div class="alert alert-info">คุณสมัครกิจกรรมนี้แล้ว — สถานะ: <span class="badge text-bg-{{ st[1] }}">{{ st[0] }}</span> <a href="{{ url_for('team.my') }}">ดูใบสมัครของฉัน</a></div>
+{% elif ev.status != 'OPEN' %}
+<div class="alert alert-secondary">กิจกรรมนี้ยังไม่เปิด/ปิดรับสมัครแล้ว</div>
+{% elif not info.type %}
+<div class="alert alert-warning">บัญชีของคุณยังไม่มีตำแหน่งกรรมการ/อนุกรรมการในวาระปัจจุบัน จึงยังสมัครทีมงานไม่ได้</div>
+{% endif %}
+
+{% for division, items in groups.items() %}
+<div class="card mb-3">
+  <div class="card-header bg-sta text-white"><i class="bi bi-building me-1"></i>{{ division }}</div>
+  <ul class="list-group list-group-flush">
+    {% for p in items %}
+    <li class="list-group-item {% if p.block %}bg-light{% endif %}">
+      <div class="d-flex flex-wrap justify-content-between gap-3">
+        <div class="flex-grow-1" style="min-width:240px">
+          <div class="fw-semibold text-sta"><i class="bi bi-person-gear me-1"></i>{{ p.name }}</div>
+          {% if p.description %}<div class="small text-secondary pre-wrap mt-1">{{ p.description }}</div>{% endif %}
+          <div class="d-flex flex-wrap gap-1 mt-2">
+            <span class="badge rounded-pill team-tag"><i class="bi bi-people"></i> รับรวม {{ p.quota }} คน</span>
+            {% if p.applicant_type != 'ALL' %}<span class="badge rounded-pill text-bg-warning">{{ TEAM_TYPES[p.applicant_type] }}</span>{% endif %}
+            {% if p.type_cap %}<span class="badge rounded-pill text-bg-light">กรรมการ {{ p.tally.COMM }}/{{ p.comm_quota }} · อนุกรรมการ {{ p.tally.SUBCOMM }}/{{ p.sub_quota }}</span>{% endif %}
+            {% if p.restrict_names %}<span class="badge rounded-pill text-bg-warning">เฉพาะ {{ p.restrict_names|join(', ') }}</span>{% endif %}
+            <span class="badge rounded-pill text-bg-light"><i class="bi bi-gender-ambiguous"></i>
+              {% if p.gender == 'SPLIT' %}ช {{ p.tally.M }}/{{ p.male_quota }} · ญ {{ p.tally.F }}/{{ p.female_quota }}{% else %}{{ p.gender_text }}{% endif %}</span>
+          </div>
+          {% if p.block and me %}<div class="small text-danger mt-2"><i class="bi bi-exclamation-circle me-1"></i>{{ p.block }}</div>
+          {% else %}<div class="progress mt-2" style="height:8px" role="progressbar" aria-label="จำนวนผู้สมัคร" aria-valuenow="{{ p.pct }}" aria-valuemin="0" aria-valuemax="100">
+            <div class="progress-bar {{ 'bg-danger' if p.pct >= 100 else 'bg-warning' if p.pct >= 70 else 'bg-success' }}" style="width: {{ p.pct }}%"></div></div>{% endif %}
+        </div>
+        <div class="text-end">
+          {% if p.full %}<span class="badge text-bg-danger"><i class="bi bi-slash-circle"></i> รับครบ</span>
+          {% else %}<div class="fw-bold text-sta fs-5">{{ p.tally.count }}<span class="small text-secondary fw-normal">/{{ p.quota }}</span></div>{% endif %}
+          {% if can_apply and not p.block %}
+          <form method="post" action="{{ url_for('team.apply', pid=p.id) }}" class="mt-2 d-flex flex-column align-items-end gap-1"
+                data-confirm="ยืนยันสมัครตำแหน่ง &quot;{{ p.name }}&quot; ({{ division }}) ใช่หรือไม่?">{{ m.csrf() }}
+            {% if p.need_gender %}
+            <select class="form-select form-select-sm" name="gender" required aria-label="เพศ" style="width:auto">
+              <option value="">ระบุเพศ</option>{% for k, l in TEAM_GENDERS.items() %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select>
+            {% endif %}
+            <button class="btn btn-sm btn-sta">สมัครตำแหน่งนี้ <i class="bi bi-arrow-right"></i></button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% else %}{{ m.empty('ยังไม่มีตำแหน่งที่เปิดรับ') }}{% endfor %}
+{% endblock %}

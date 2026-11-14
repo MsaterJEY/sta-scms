@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}{{ 'สร้างกิจกรรมรับสมัครทีมงาน' if is_new else 'แก้ไขกิจกรรม' }}{% endblock %}
+
+{% macro position_form(p, n) %}
+<form method="post" action="{{ url_for('team.save_position', eid=ev.id) }}" class="team-pos-form">{{ m.csrf() }}
+  {% if p %}<input type="hidden" name="position_id" value="{{ p.id }}">{% endif %}
+  <div class="row g-2">
+    <div class="col-md-5"><label class="form-label" for="pn{{ n }}">ชื่อตำแหน่งที่เปิดรับสมัคร <span class="text-danger">*</span></label>
+      <input class="form-control" id="pn{{ n }}" name="name" required value="{{ p.name if p else '' }}" placeholder="เช่น เจ้าหน้าที่ประชาสัมพันธ์"></div>
+    <div class="col-md-4"><label class="form-label" for="pd{{ n }}">กองของตำแหน่ง <span class="text-danger">*</span></label>
+      <select class="form-select" id="pd{{ n }}" name="division_id">{% for d in divisions %}<option value="{{ d.id }}" {% if p and p.division_id == d.id %}selected{% endif %}>{{ d.name }}</option>{% endfor %}</select></div>
+    <div class="col-md-3 js-quota"><label class="form-label" for="pq{{ n }}">จำนวนที่เปิดรับ (คน) <span class="text-danger">*</span></label>
+      <input class="form-control" id="pq{{ n }}" type="number" min="1" name="quota" value="{{ p.quota if p else 5 }}"></div>
+    <div class="col-12"><label class="form-label" for="px{{ n }}">รายละเอียดหน้าที่ <span class="text-secondary">(ไม่บังคับ)</span></label>
+      <textarea class="form-control" id="px{{ n }}" name="description" rows="2" maxlength="500" placeholder="อธิบายหน้าที่ของตำแหน่งนี้">{{ p.description if p else '' }}</textarea></div>
+
+    <div class="col-md-6">
+      <label class="form-label" for="pt{{ n }}">ประเภทผู้สมัคร</label>
+      <select class="form-select js-type" id="pt{{ n }}" name="applicant_type">{% for k, l in TEAM_TYPES.items() %}<option value="{{ k }}" {% if p and p.applicant_type == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+      <div class="js-cap-wrap mt-2">
+        <div class="form-check"><input class="form-check-input js-cap" type="checkbox" name="type_cap" id="pc{{ n }}" {% if p and p.type_cap %}checked{% endif %}>
+          <label class="form-check-label" for="pc{{ n }}">จำกัดจำนวนรับแยกกรรมการ/อนุกรรมการ</label></div>
+        <div class="row g-2 mt-1 js-cap-nums">
+          <div class="col-6"><label class="form-label small" for="pcc{{ n }}">กรรมการ</label><input class="form-control form-control-sm" id="pcc{{ n }}" type="number" min="0" name="comm_quota" value="{{ p.comm_quota if p else 0 }}"></div>
+          <div class="col-6"><label class="form-label small" for="pcs{{ n }}">อนุกรรมการ</label><input class="form-control form-control-sm" id="pcs{{ n }}" type="number" min="0" name="sub_quota" value="{{ p.sub_quota if p else 0 }}"></div>
+          <div class="form-text">รวมกันต้องไม่เกินจำนวนที่เปิดรับ</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label" for="pg{{ n }}">เพศที่เปิดรับ</label>
+      <select class="form-select js-gender" id="pg{{ n }}" name="gender">
+        {% for k, l in [('ANY', 'ไม่จำกัดเพศ'), ('M', 'ชายเท่านั้น'), ('F', 'หญิงเท่านั้น'), ('SPLIT', 'กำหนดจำนวนชาย/หญิง')] %}<option value="{{ k }}" {% if p and p.gender == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+      <div class="row g-2 mt-1 js-split">
+        <div class="col-6"><label class="form-label small" for="pm{{ n }}">ชาย</label><input class="form-control form-control-sm" id="pm{{ n }}" type="number" min="0" name="male_quota" value="{{ p.male_quota if p else 0 }}"></div>
+        <div class="col-6"><label class="form-label small" for="pf{{ n }}">หญิง</label><input class="form-control form-control-sm" id="pf{{ n }}" type="number" min="0" name="female_quota" value="{{ p.female_quota if p else 0 }}"></div>
+        <div class="form-text">ระบบรวมจำนวนชายและหญิงเป็นจำนวนที่เปิดรับให้อัตโนมัติ</div>
+      </div>
+    </div>
+    <div class="col-12">
+      <div class="form-label mb-1">กองที่มีสิทธิ์สมัคร</div>
+      <div class="d-flex flex-wrap gap-3">
+        {% for d in divisions %}
+        <div class="form-check"><input class="form-check-input" type="checkbox" name="restrict" value="{{ d.id }}" id="pr{{ n }}_{{ d.id }}" {% if p and d.id in (p.restrict_divisions or []) %}checked{% endif %}>
+          <label class="form-check-label" for="pr{{ n }}_{{ d.id }}">{{ d.name }}</label></div>
+        {% endfor %}
+      </div>
+      <div class="form-text">ไม่เลือกกองใดเลย = ทุกกองสมัครได้</div>
+    </div>
+  </div>
+  <div class="d-flex flex-wrap gap-2 mt-3">
+    <button class="btn btn-sm btn-sta" name="action" value="save"><i class="bi bi-save"></i> {{ 'บันทึกตำแหน่ง' if p else 'เพิ่มตำแหน่ง' }}</button>
+    {% if p %}
+    <button class="btn btn-sm btn-outline-secondary" name="action" value="copy" formnovalidate><i class="bi bi-copy"></i> คัดลอกตำแหน่ง</button>
+    <button class="btn btn-sm btn-outline-danger ms-auto" name="action" value="delete" formnovalidate data-confirm="ลบตำแหน่ง &quot;{{ p.name }}&quot;?"><i class="bi bi-trash"></i> ลบตำแหน่ง</button>
+    {% endif %}
+  </div>
+</form>
+{% endmacro %}
+
+{% block content %}
+{% call m.page_header('สร้างกิจกรรม / รับสมัครทีมงาน' if is_new else 'แก้ไขกิจกรรม') %}
+{% if not is_new %}
+{% set st = TEAM_EVENT_STATUS.get(ev.status, (ev.status, 'secondary')) %}<span class="badge text-bg-{{ st[1] }} align-self-center">{{ st[0] }}</span>
+<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('team.applicants', eid=ev.id) }}"><i class="bi bi-people"></i> ผู้สมัคร</a>
+{% endif %}
+<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('team.manage') }}">กลับ</a>
+{% endcall %}
+
+<div class="row g-3">
+  <div class="col-lg-5">
+    <div class="card"><div class="card-header">1. ข้อมูลกิจกรรม</div><div class="card-body">
+      <form method="post" enctype="multipart/form-data">{{ m.csrf() }}
+        <div class="mb-2"><label class="form-label" for="evTitle">ชื่อกิจกรรม <span class="text-danger">*</span></label><input class="form-control" id="evTitle" name="title" required value="{{ ev.title or '' }}"></div>
+        <div class="row g-2 mb-1">
+          <div class="col-6"><label class="form-label" for="evStart">วันที่เริ่มงาน <span class="text-danger">*</span></label><input class="form-control" id="evStart" type="date" name="start_date" required value="{{ ev.start_date or '' }}"></div>
+          <div class="col-6"><label class="form-label" for="evEnd">วันที่สิ้นสุดงาน</label><input class="form-control" id="evEnd" type="date" name="end_date" value="{{ ev.end_date or '' }}"></div>
+        </div>
+        <div class="form-text mb-2">ถ้ากิจกรรมจัดวันเดียว ไม่ต้องกรอกวันที่สิ้นสุดงาน</div>
+        <div class="mb-2"><label class="form-label" for="evLoc">สถานที่</label><input class="form-control" id="evLoc" name="location" value="{{ ev.location or '' }}"></div>
+        <div class="mb-2"><label class="form-label" for="evCover">รูปปกกิจกรรม</label><input class="form-control" id="evCover" type="file" name="cover" accept="image/*">
+          <div class="form-text">JPG/PNG/WEBP ไม่เกิน {{ config.MAX_FILE_MB }} MB — ถ้าไม่อัปโหลด ระบบจะแสดงไอคอนแทน</div>
+          {% if ev.cover_path and ev.id %}
+          <img src="{{ url_for('team.cover', eid=ev.id) }}" class="img-fluid rounded mt-2" style="max-height:160px" alt="รูปปกปัจจุบัน">
+          <div class="form-check mt-1"><input class="form-check-input" type="checkbox" name="remove_cover" id="rmCover"><label class="form-check-label" for="rmCover">ลบรูปปก</label></div>
+          {% endif %}</div>
+        <div class="mb-2"><label class="form-label" for="evDesc">คำอธิบาย</label><textarea class="form-control" id="evDesc" name="description" rows="3" placeholder="รายละเอียดโดยย่อ">{{ ev.description or '' }}</textarea></div>
+        <div class="mb-3"><label class="form-label" for="evNote">หมายเหตุ</label><input class="form-control" id="evNote" name="note" value="{{ ev.note or '' }}" placeholder="เช่น ยกเว้นวันที่ 5, 12 มีนาคม"></div>
+        <button class="btn btn-sta"><i class="bi bi-save"></i> {{ 'สร้างกิจกรรมและไปเพิ่มตำแหน่ง' if is_new else 'บันทึกข้อมูลกิจกรรม' }}</button>
+      </form>
+    </div></div>
+
+    {% if not is_new %}
+    <div class="card mt-3"><div class="card-header">3. เปิด/ปิดรับสมัคร</div><div class="card-body">
+      <form method="post" action="{{ url_for('team.event_status', eid=ev.id) }}">{{ m.csrf() }}
+        {% if ev.status == 'OPEN' %}<button name="action" value="CLOSED" class="btn btn-outline-warning w-100"><i class="bi bi-pause-circle"></i> ปิดรับสมัคร</button>
+        {% else %}<button name="action" value="OPEN" class="btn btn-success w-100" {% if not positions %}disabled{% endif %}><i class="bi bi-play-circle"></i> เปิดรับสมัคร</button>
+        {% if not positions %}<div class="form-text">เพิ่มตำแหน่งอย่างน้อย 1 ตำแหน่งก่อนเปิดรับสมัคร</div>{% endif %}{% endif %}
+      </form>
+    </div></div>
+    {% endif %}
+  </div>
+
+  <div class="col-lg-7" id="positions">
+    <div class="card"><div class="card-header">2. ตำแหน่งที่เปิดรับสมัคร {% if positions %}<span class="text-secondary fw-normal">({{ positions|length }} ตำแหน่ง)</span>{% endif %}</div>
+      <div class="card-body">
+        {% if is_new %}
+        <p class="text-secondary mb-0">บันทึกข้อมูลกิจกรรมก่อน แล้วจึงเพิ่มตำแหน่งที่เปิดรับพร้อมเงื่อนไขผู้สมัครได้ที่นี่</p>
+        {% else %}
+        {% for p in positions %}
+        <details class="team-pos mb-2">
+          <summary>
+            <span class="fw-semibold">{{ loop.index }}. {{ p.name }}</span> <span class="badge text-bg-light">{{ p.division_name }}</span>
+            <div class="small text-secondary">รับ {{ p.quota }} คน (สมัครแล้ว {{ p.tally.count }}) · {{ TEAM_TYPES[p.applicant_type] }} · {{ p.restrict_names|join(', ') if p.restrict_names else 'ทุกกอง' }} · {{ p.gender_text }}</div>
+          </summary>
+          <div class="pt-3">{{ position_form(p, loop.index) }}</div>
+        </details>
+        {% endfor %}
+        <details class="team-pos" {% if not positions %}open{% endif %}>
+          <summary><span class="fw-semibold text-sta"><i class="bi bi-plus-circle"></i> เพิ่มตำแหน่ง</span></summary>
+          <div class="pt-3">{{ position_form(none, 0) }}</div>
+        </details>
+        {% endif %}
+      </div></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// แสดงช่องจำนวนแยกประเภท/แยกเพศ เฉพาะเมื่อเลือกตัวเลือกที่ต้องใช้
+document.querySelectorAll('.team-pos-form').forEach(function (f) {
+  function sync() {
+    var all = f.querySelector('.js-type').value === 'ALL';
+    var split = f.querySelector('.js-gender').value === 'SPLIT';
+    f.querySelector('.js-cap-wrap').hidden = !all;
+    f.querySelector('.js-cap-nums').hidden = !f.querySelector('.js-cap').checked;
+    f.querySelector('.js-split').hidden = !split;
+    f.querySelector('.js-quota').hidden = split;
+  }
+  f.addEventListener('change', sync);
+  sync();
+});
+</script>
+{% endblock %}

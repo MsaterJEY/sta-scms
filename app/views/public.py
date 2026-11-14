@@ -6,6 +6,7 @@ from flask import Blueprint, abort, current_app, render_template, request
 from ..db import repo
 from ..services import approval_state
 from ..utils import now, parse_dt
+from .team import open_events
 
 bp = Blueprint("public", __name__)
 
@@ -61,7 +62,8 @@ def home():
     rounds = [r for r in repo().where("recruitment_rounds", status="OPEN")]
     open_positions = [p for p in repo().where("activity_positions", status="OPEN")]
     return render_template("public/home.html", anns=anns, notices=notices, cats=cats, rounds=rounds,
-                           open_positions=open_positions, banners=home_banners())
+                           open_positions=open_positions, banners=home_banners(),
+                           team_events=open_events())
 
 
 @bp.route("/soon/<key>")
