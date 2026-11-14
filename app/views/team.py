@@ -308,6 +308,14 @@ def form(eid=None):
     if denied:
         return denied
     ev = _event(eid) if eid else None
+    # wizard = ขั้นตอนสร้างใหม่ 3 ขั้น (กิจกรรมถูกบันทึกเป็น "รอเปิดรับสมัคร" ตั้งแต่ออกจากขั้นที่ 1)
+    wizard = not ev or request.values.get("wizard") == "1"
+
+    def page(event, step):
+        positions = positions_of(eid) if ev else []
+        return render_template("team/form.html", ev=event, positions=positions, divisions=divisions(), is_new=not ev,
+                               wizard=wizard, step=step, dates=date_range(event))
+
     if request.method == "POST":
         f = request.form
         data = {"title": f.get("title", "").strip(), "start_date": f.get("start_date") or "",
@@ -329,24 +337,41 @@ def form(eid=None):
             data["cover_path"] = None
         if error:
             flash(error, "danger")
-            return render_template("team/form.html", ev=dict(ev or {}, **data), positions=positions_of(eid) if ev else [],
-                                   divisions=divisions(), is_new=not ev)
+            return page(dict(ev or {}, **data), 1)
         if ev:
             if "cover_path" in data and ev.get("cover_path"):
                 delete_file(ev["cover_path"])
             repo().update("team_events", eid, data)
             audit("team.event_update", "team_event", eid, new=data)
-            flash("บันทึกข้อมูลกิจกรรมแล้ว", "success")
+            if not wizard:
+                flash("บันทึกข้อมูลกิจกรรมแล้ว", "success")
         else:
             data.update({"status": "WAITING", "is_pinned": False, "academic_year": current_year(),
                          "created_by": current_user()["id"], "created_at": now_iso()})
             data.setdefault("cover_path", None)
             eid = repo().add("team_events", data)
             audit("team.event_create", "team_event", eid, new=data)
-            flash("สร้างกิจกรรมแล้ว (สถานะ: รอเปิดรับสมัคร) — เพิ่มตำแหน่งที่เปิดรับ แล้วกดเปิดรับสมัคร", "success")
-        return redirect(url_for("team.form", eid=eid))
-    return render_template("team/form.html", ev=ev or {}, positions=positions_of(eid) if ev else [],
-                           divisions=divisions(), is_new=not ev)
+        step = _int(f.get("next_step")) or 1
+        return redirect(url_for("team.form", eid=eid, step=max(step, 2) if wizard else step, wizard=1 if wizard else None))
+    step = _int(request.args.get("step")) or 1
+    return page(ev or {}, step if ev else 1)
+
+
+@bp.route("/manage/<eid>/finish", methods=["POST"])
+def finish(eid):
+    """ขั้นสุดท้ายของการสร้างกิจกรรม: เปิดรับสมัครทันที หรือเก็บไว้เป็นสถานะรอเปิดรับสมัคร"""
+    denied = manager_required()
+    if denied:
+        return denied
+    ev = _event(eid)
+    if not repo().where("team_positions", event_id=eid):
+        flash("กรุณาเพิ่มและบันทึกตำแหน่งอย่างน้อย 1 ตำแหน่ง", "danger")
+        return redirect(url_for("team.form", eid=eid, step=2, wizard=1))
+    if request.form.get("open_now") and ev.get("status") != "OPEN":
+        repo().update("team_events", eid, {"status": "OPEN"})
+        audit("team.event_status", "team_event", eid, new="OPEN")
+    flash(f"สร้างกิจกรรมแล้ว: {ev.get('title')}", "success")
+    return redirect(url_for("team.manage"))
 
 
 @bp.route("/manage/<eid>/status", methods=["POST"])
@@ -396,10 +421,12 @@ def _position_from_form(f):
     cap = want == "ALL" and bool(f.get("type_cap"))
     comm, sub = (_int(f.get("comm_quota")), _int(f.get("sub_quota"))) if cap else (0, 0)
     valid = {d["id"] for d in repo().all("divisions")}
+    scope = f.get("scope")  # all = ทุกกอง, limit = เฉพาะกองที่เลือก (ไม่ส่งมา = ดูจากรายการที่เลือก)
+    restrict = [] if scope == "all" else [d for d in f.getlist("restrict") if d in valid]
     data = {"name": f.get("name", "").strip(), "division_id": f.get("division_id"),
             "description": f.get("description", "").strip()[:500], "quota": quota, "applicant_type": want,
             "type_cap": cap, "comm_quota": comm, "sub_quota": sub, "gender": gender, "male_quota": male,
-            "female_quota": female, "restrict_divisions": [d for d in f.getlist("restrict") if d in valid]}
+            "female_quota": female, "restrict_divisions": restrict}
     error = None
     if not data["name"]:
         error = "กรุณาระบุชื่อตำแหน่งที่เปิดรับสมัคร"
@@ -409,6 +436,8 @@ def _position_from_form(f):
         error = "กรุณาระบุจำนวนชายหรือหญิงอย่างน้อย 1 คน" if gender == "SPLIT" else "กรุณาระบุจำนวนที่เปิดรับ"
     elif cap and comm + sub > quota:
         error = f"จำนวนกรรมการรวมอนุกรรมการต้องไม่เกินจำนวนรับรวม ({quota} คน)"
+    elif scope == "limit" and not restrict:
+        error = "กรุณาเลือกกองที่รับสมัครอย่างน้อย 1 กอง"
     return data, error
 
 
@@ -449,7 +478,7 @@ def save_position(eid):
             pid = repo().add("team_positions", data)
             audit("team.position_add", "team_position", pid, new=data)
             flash("เพิ่มตำแหน่งแล้ว", "success")
-    return redirect(url_for("team.form", eid=eid, _anchor="positions"))
+    return redirect(url_for("team.form", eid=eid, step=2, wizard=1 if f.get("wizard") == "1" else None))
 
 
 # ---------- ผู้สมัคร ----------

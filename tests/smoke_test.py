@@ -443,6 +443,21 @@ with app.app_context():
     tp = repo().where("team_positions", event_id=tid)[0]
     ph.post(f"/team/manage/{tid}/status", data={"action": "OPEN"})
     check(repo().get("team_events", tid)["status"] == "OPEN", "open team event")
+    ph.post("/team/manage/new", data={"title": "งานวิซาร์ด", "start_date": "2026-12-05", "next_step": "2", "wizard": "1"})
+    wid = repo().where("team_events", title="งานวิซาร์ด")[0]["id"]
+    ph.post(f"/team/manage/{wid}/finish", data={"open_now": "1"})
+    check(repo().get("team_events", wid)["status"] == "WAITING", "wizard cannot finish without positions")
+    ph.post(f"/team/manage/{wid}/positions", data={"wizard": "1", "name": "สวัสดิการ", "division_id": "ADMIN", "quota": "2",
+                                                   "applicant_type": "ALL", "gender": "ANY", "scope": "limit"})
+    check(not repo().where("team_positions", event_id=wid), "limited scope needs at least one division")
+    ph.post(f"/team/manage/{wid}/positions", data={"wizard": "1", "name": "สวัสดิการ", "division_id": "ADMIN", "quota": "2",
+                                                   "applicant_type": "ALL", "gender": "ANY", "scope": "all", "restrict": ["ADMIN"]})
+    check(repo().where("team_positions", event_id=wid)[0]["restrict_divisions"] == [], "scope all clears division limits")
+    for st in (1, 2, 3):
+        get_ok(ph, f"/team/manage/{wid}/edit?wizard=1&step={st}")
+    ph.post(f"/team/manage/{wid}/finish", data={"open_now": "1"})
+    check(repo().get("team_events", wid)["status"] == "OPEN", "wizard finish opens event")
+    ph.post(f"/team/manage/{wid}/status", data={"action": "delete"})
     check("งานทดสอบทีม" in guest.get("/team/").get_data(as_text=True), "public sees open team event")
     check("กรุณาเข้าสู่ระบบก่อนสมัคร" in get_ok(guest, f"/team/{tid}").get_data(as_text=True), "guest must log in to apply")
     check(guest.post(f"/team/position/{tp['id']}/apply").status_code == 302 and not repo().where("team_applications", event_id=tid),
@@ -462,7 +477,7 @@ with app.app_context():
     check(repo().get("team_applications", tapps[0]["id"])["status"] == "APPROVED", "approve applicant")
     ph.post(f"/team/manage/{tid}/applicants/add", data={"full_name": "คนนอก ทดสอบ", "position_id": tp["id"]})
     check(len(repo().where("team_applications", event_id=tid)) == 2, "admin adds outsider past quota")
-    for u in ["/team/manage", f"/team/manage/{tid}/edit", f"/team/manage/{tid}/applicants?status=active", f"/team/manage/{tid}/print",
+    for u in ["/team/manage", "/team/manage/new", f"/team/manage/{tid}/edit", f"/team/manage/{tid}/edit?step=2", f"/team/manage/{tid}/applicants?status=active", f"/team/manage/{tid}/print",
               "/team/my", f"/team/{tid}"]:
         get_ok(ph, u, f"{u} as team manager")
     check("คนนอก ทดสอบ" in ph.get(f"/team/manage/{tid}/list.txt").get_data(as_text=True), "copy list text")
