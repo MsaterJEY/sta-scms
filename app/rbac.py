@@ -14,8 +14,10 @@ from .utils import now, parse_dt, setting
 
 # code: (ชื่อ, บทบาทตั้งต้น, locked)
 PERMISSIONS = {
-    "admin.manage": ("จัดการบัญชี ตำแหน่ง ตั้งค่าระบบ ตารางสาขา", ["SYS_ADMIN"], False),
-    "audit.view": ("ดู Audit Log", ["SYS_ADMIN", "PRES", "ADVISOR"], False),
+    # เมนู "ผู้ดูแลระบบ": locked ทั้งคู่ เพิ่มบทบาทผ่านหน้าจัดการสิทธิ์ไม่ได้
+    "admin.manage": ("จัดการบัญชี ตำแหน่ง ตั้งค่าระบบ ตารางสาขา", ["SYS_ADMIN"], True),
+    "admin.holders": ("จัดการผู้ถือตำแหน่งตามวาระ", ["SYS_ADMIN", "ADMIN_SEC"], True),
+    "audit.view": ("ดู Audit Log (ประวัติของระบบ)", ["SYS_ADMIN"], True),
     "delegation.manage": ("มอบ/ถอนสิทธิ์คัดกรองรายกิจกรรม", ["ADMIN_VP", "ADMIN_SEC"], True),
     "rec.manage": ("เปิด/ปิดรอบรับสมัครกรรมการ ตรวจคุณสมบัติ จัดชุดผล", ["PERSONNEL_HEAD"], False),
     "rec.view_grade": ("เห็นเกรดผู้สมัคร", ["PERSONNEL_HEAD"], True),

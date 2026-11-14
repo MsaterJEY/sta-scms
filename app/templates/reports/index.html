@@ -23,7 +23,7 @@
 <div class="row g-3">
   <div class="col-lg-6"><div class="card h-100"><div class="card-header">รับสมัครกรรมการ/อนุกรรมการ</div><table class="table table-sm mb-0"><thead><tr><th>รอบ</th><th>ผู้สมัคร</th><th>ผ่าน (อนุมัติครบ)</th></tr></thead><tbody>
     {% for x in rec %}<tr><td><a href="{{ url_for('recruit.detail', rid=x.round.id) }}">{{ x.round.title }}</a></td><td>{{ x.apps }}</td><td>{{ x.pass }}</td></tr>{% else %}<tr><td colspan="3">{{ m.empty() }}</td></tr>{% endfor %}</tbody></table>
-    {% if can('admin.manage') or can('report.view') %}<div class="card-body border-top small">รายชื่อผู้ถือตำแหน่งทั้งหมด: {{ m.export_buttons('holders', {'year': year}) }}</div>{% endif %}</div></div>
+    {% if can('admin.holders') or can('report.view') %}<div class="card-body border-top small">รายชื่อผู้ถือตำแหน่งทั้งหมด: {{ m.export_buttons('holders', {'year': year}) }}</div>{% endif %}</div></div>
   {% if show_tkt %}<div class="col-lg-6"><div class="card h-100"><div class="card-header d-flex justify-content-between">สถิติคำร้อง (ค่ารวม) {{ m.export_buttons('ticket_stats') }}</div><table class="table table-sm mb-0"><thead><tr><th>ประเภท</th><th>เรื่อง</th><th>ปิด</th><th>เกิน SLA</th><th>พึงพอใจ</th></tr></thead>
     <tbody>{% for r in tkt %}<tr>{% for c in r %}<td>{{ c }}</td>{% endfor %}</tr>{% endfor %}</tbody></table></div></div>{% endif %}
 </div>

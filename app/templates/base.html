@@ -86,19 +86,19 @@
             <li><a class="dropdown-item" href="{{ url_for('reports.index') }}">รายงานและสถิติ</a></li>{% endif %}
             {% if can('delegation.manage') %}
             <li><a class="dropdown-item" href="{{ url_for('admin.delegations') }}">มอบสิทธิ์คัดกรอง</a></li>{% endif %}
-            {% if can('audit.view') and not can('admin.manage') %}
-            <li><a class="dropdown-item" href="{{ url_for('admin.audit_log') }}">Audit Log</a></li>{% endif %}
             {% endif %}
-            {% if me and can('admin.manage') %}
+            {% if me and (can('admin.manage') or can('admin.holders')) %}
             <li><h6 class="dropdown-header">ผู้ดูแลระบบ</h6></li>
-            <li><a class="dropdown-item" href="{{ url_for('admin.users') }}">บัญชีผู้ใช้</a></li>
-            <li><a class="dropdown-item" href="{{ url_for('admin.holders') }}">ผู้ถือตำแหน่งตามวาระ</a></li>
+            {% if can('admin.manage') %}<li><a class="dropdown-item" href="{{ url_for('admin.users') }}">บัญชีผู้ใช้</a></li>{% endif %}
+            {% if can('admin.holders') %}<li><a class="dropdown-item" href="{{ url_for('admin.holders') }}">ผู้ถือตำแหน่งตามวาระ</a></li>{% endif %}
+            {% if can('admin.manage') %}
             <li><a class="dropdown-item" href="{{ url_for('admin.positions') }}">กองและตำแหน่ง</a></li>
             <li><a class="dropdown-item" href="{{ url_for('admin.years') }}">ปีการศึกษา</a></li>
             <li><a class="dropdown-item" href="{{ url_for('admin.programs') }}">ตารางสาขา</a></li>
             <li><a class="dropdown-item" href="{{ url_for('admin.permissions') }}">สิทธิ์</a></li>
             <li><a class="dropdown-item" href="{{ url_for('admin.system_settings') }}">ตั้งค่าระบบ</a></li>
-            <li><a class="dropdown-item" href="{{ url_for('admin.audit_log') }}">Audit Log</a></li>
+            {% endif %}
+            {% if can('audit.view') %}<li><a class="dropdown-item" href="{{ url_for('admin.audit_log') }}">Audit Log</a></li>{% endif %}
             {% endif %}
           </ul>
         </li>

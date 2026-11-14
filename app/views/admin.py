@@ -114,7 +114,7 @@ def years():
 
 # ---------- ผู้ถือตำแหน่งตามวาระ ----------
 @bp.route("/holders", methods=["GET", "POST"])
-@permission_required("admin.manage")
+@permission_required("admin.holders")
 def holders():
     year = int(request.values.get("year") or current_year())
     positions = {p["id"]: p for p in repo().all("positions")}
@@ -164,7 +164,7 @@ def holders():
 
 @dataset("holders")
 def ds_holders(args):
-    if not (can("admin.manage") or can("report.view")):
+    if not (can("admin.holders") or can("report.view")):
         abort(403)
     year = int(args.get("year") or current_year())
     positions = {p["id"]: p for p in repo().all("positions")}

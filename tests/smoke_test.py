@@ -416,8 +416,10 @@ with app.app_context():
     check(len(repo().where("activity_evidence", activity_id=act["id"])) == 2, "file over 2 MB rejected")
     get_ok(pres, "/reports/")
     check(stu.get("/reports/").status_code == 403, "student cannot view reports")
-    for ds in ("report_activities", "report_hours", "holders", "audit", "documents"):
+    for ds in ("report_activities", "report_hours", "holders", "documents"):
         check(pres.get(f"/export/{ds}?fmt=csv").status_code == 200, f"export {ds}")
+    check(pres.get("/export/audit?fmt=csv").status_code == 403, "audit export blocked for PRES")
+    check(admin.get("/export/audit?fmt=csv").status_code == 200, "audit export for admin")
     r = pub.get("/cron/daily")
     check(r.status_code == 401, "cron requires secret")
     r = pub.get("/cron/daily", headers={"Authorization": "Bearer cron"})
@@ -487,6 +489,27 @@ with app.app_context():
     check(acv.post(f"/team/manage/{tid}/status", data={"action": "delete"}).status_code == 403, "delete needs team.delete")
     ph.post(f"/team/manage/{tid}/status", data={"action": "delete"})
     check(not repo().get("team_events", tid) and not repo().where("team_applications", event_id=tid), "delete event with its data")
+
+    print("== admin menu access")
+    asec_c = client_for("406765004")
+    check("ผู้ถือตำแหน่งตามวาระ" in get_ok(asec_c, "/admin/holders", "holders as ADMIN_SEC").get_data(as_text=True), "ADMIN_SEC uses holders page")
+    home_html = asec_c.get("/").get_data(as_text=True)
+    check("/admin/holders" in home_html and "/admin/users" not in home_html and "/admin/settings" not in home_html,
+          "ADMIN_SEC menu shows only holders")
+    for u in ["/admin/users", "/admin/positions", "/admin/years", "/admin/programs", "/admin/settings", "/admin/permissions",
+              "/admin/audit", "/export/audit?fmt=tsv"]:
+        check(asec_c.get(u).status_code == 403, f"ADMIN_SEC blocked from {u}")
+    get_ok(asec_c, "/admin/delegations", "delegations still open to ADMIN_SEC")
+    pres_c = client_for("406765001")
+    check(pres_c.get("/admin/audit").status_code == 403 and "/admin/audit" not in pres_c.get("/").get_data(as_text=True),
+          "PRES no longer sees audit log")
+    check(admin.post("/admin/permissions", data={"perm": "audit.view", "roles": ["PRES"]}).status_code == 403, "audit.view is locked")
+    for who in ("406765001", "406765003", "406865010"):
+        c = client_for(who)
+        check(c.get("/admin/holders").status_code == 403 and c.get("/admin/users").status_code == 403, f"{who} blocked from admin menu")
+        check("ผู้ดูแลระบบ</h6>" not in c.get("/").get_data(as_text=True), f"{who} does not see admin menu")
+    r = admin.post("/admin/permissions", data={"perm": "admin.manage", "roles": ["PRES"]})
+    check(r.status_code == 403, "admin.manage is locked")
 
     print("== login lockout")
     lc = app.test_client()
