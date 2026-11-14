@@ -90,16 +90,6 @@
         <button class="btn btn-sta"><i class="bi bi-save"></i> {{ 'สร้างกิจกรรมและไปเพิ่มตำแหน่ง' if is_new else 'บันทึกข้อมูลกิจกรรม' }}</button>
       </form>
     </div></div>
-
-    {% if not is_new %}
-    <div class="card mt-3"><div class="card-header">3. เปิด/ปิดรับสมัคร</div><div class="card-body">
-      <form method="post" action="{{ url_for('team.event_status', eid=ev.id) }}">{{ m.csrf() }}
-        {% if ev.status == 'OPEN' %}<button name="action" value="CLOSED" class="btn btn-outline-warning w-100"><i class="bi bi-pause-circle"></i> ปิดรับสมัคร</button>
-        {% else %}<button name="action" value="OPEN" class="btn btn-success w-100" {% if not positions %}disabled{% endif %}><i class="bi bi-play-circle"></i> เปิดรับสมัคร</button>
-        {% if not positions %}<div class="form-text">เพิ่มตำแหน่งอย่างน้อย 1 ตำแหน่งก่อนเปิดรับสมัคร</div>{% endif %}{% endif %}
-      </form>
-    </div></div>
-    {% endif %}
   </div>
 
   <div class="col-lg-7" id="positions">
@@ -123,6 +113,16 @@
         </details>
         {% endif %}
       </div></div>
+
+    {% if not is_new %}
+    <div class="card mt-3"><div class="card-header">3. เปิด/ปิดรับสมัคร</div><div class="card-body">
+      <form method="post" action="{{ url_for('team.event_status', eid=ev.id) }}">{{ m.csrf() }}
+        {% if ev.status == 'OPEN' %}<button name="action" value="CLOSED" class="btn btn-outline-warning w-100"><i class="bi bi-pause-circle"></i> ปิดรับสมัคร</button>
+        {% else %}<button name="action" value="OPEN" class="btn btn-success w-100" {% if not positions %}disabled{% endif %}><i class="bi bi-play-circle"></i> เปิดรับสมัคร</button>
+        {% if not positions %}<div class="form-text">เพิ่มตำแหน่งอย่างน้อย 1 ตำแหน่งก่อนเปิดรับสมัคร</div>{% endif %}{% endif %}
+      </form>
+    </div></div>
+    {% endif %}
   </div>
 </div>
 {% endblock %}
