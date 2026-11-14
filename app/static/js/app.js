@@ -121,7 +121,56 @@
     input.files = dt.files;
   });
 
-  window.postJSON = (url, data) => fetch(url, {
+  // ---------- แถบบนสุด: ปรับขนาดตัวอักษร + เปลี่ยนภาษา (จำค่าไว้ใน localStorage) ----------
+  const root = document.documentElement;
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* โหมดส่วนตัว */ } },
+  };
+
+  function applyFontSize(fs) {
+    if (fs === 'm') delete root.dataset.fs; else root.dataset.fs = fs;
+    document.querySelectorAll('button[data-fs]').forEach((b) => b.classList.toggle('active', b.dataset.fs === fs));
+  }
+
+  // คำแปลอังกฤษของข้อความโครงหน้าเว็บ (ข้อความไทยอยู่ใน HTML อยู่แล้ว) เนื้อหาจากฐานข้อมูลไม่ถูกแปล
+  const EN = {
+    'brand': 'Science Student Club',
+    'nav.home': 'Home', 'nav.equipment': 'Equipment', 'nav.org': 'Organization', 'nav.help': 'Help', 'nav.login': 'Sign in',
+    'svc.register': 'Register', 'svc.shop': 'Shop', 'svc.borrow': 'Borrow & Return', 'svc.order': 'Order',
+    'svc.faq': 'FAQ', 'svc.recruit': 'Committee Recruitment', 'svc.activity': 'Activities', 'svc.ticket': 'Requests',
+    'svc.rooms': 'Room Booking',
+    'home.news': 'News & Announcements', 'home.all': 'View all', 'home.latest': 'Latest', 'home.notice': 'Announcements',
+    'home.services': 'Services', 'home.open': 'Now Open for Applications',
+    'foot.address': 'Yala Rajabhat University, 133 Thetsaban 3 Road, Sateng, Mueang, Yala 95000',
+    'foot.about': 'About the System', 'foot.about1': 'About STA-SCMS', 'foot.about2': 'User Guide', 'foot.about3': 'Privacy Policy',
+    'foot.uni': 'University Services', 'foot.uni1': 'University Website', 'foot.uni2': 'Education Service System',
+    'foot.uni3': 'Academic Resources Office', 'foot.uni4': 'Student Development Division',
+    'foot.club': 'Club Services', 'foot.faculty': 'Faculty',
+    'foot.copy': 'Student Club Management System, Faculty of Science Technology and Agriculture, Yala Rajabhat University',
+    'soon.text': 'This service is being prepared and will be available soon.', 'soon.back': 'Back to Home',
+  };
+
+  function applyLang(lang) {
+    root.lang = lang;
+    document.querySelectorAll('[data-i18n]').forEach((el) => {
+      if (el.dataset.th === undefined) el.dataset.th = el.textContent;
+      el.textContent = lang === 'en' && EN[el.dataset.i18n] ? EN[el.dataset.i18n] : el.dataset.th;
+    });
+    document.querySelectorAll('button[data-lang]').forEach((b) => b.classList.toggle('active', b.dataset.lang === lang));
+  }
+
+  applyFontSize(store.get('sta-fs') || 'm');
+  applyLang(store.get('sta-lang') === 'en' ? 'en' : 'th');
+
+  document.addEventListener('click', (e) => {
+    const fsBtn = e.target.closest('button[data-fs]');
+    if (fsBtn) { store.set('sta-fs', fsBtn.dataset.fs); applyFontSize(fsBtn.dataset.fs); return; }
+    const langBtn = e.target.closest('button[data-lang]');
+    if (langBtn) { store.set('sta-lang', langBtn.dataset.lang); applyLang(langBtn.dataset.lang); }
+  });
+
+  window.postJSON =(url, data) => fetch(url, {
     method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf }, body: JSON.stringify(data),
   });
 })();

@@ -1,5 +1,7 @@
 """หน้าสาธารณะ (ANN-01, ANN-06, FAQ-02) ไม่ต้องล็อกอิน"""
-from flask import Blueprint, abort, render_template, request
+import os
+
+from flask import Blueprint, abort, current_app, render_template, request
 
 from ..db import repo
 from ..services import approval_state
@@ -32,13 +34,42 @@ def published_announcements(category=None):
     return items
 
 
+BANNER_EXTS = (".jpg", ".jpeg", ".png", ".webp", ".svg")
+COMING_SOON = {
+    "shop": ("ร้านค้าสโมสร", "bag"),
+    "rooms": ("จองใช้ห้อง", "door-open"),
+    "org": ("องค์กรและโครงสร้างสโมสร", "diagram-3"),
+}
+
+
+def home_banners():
+    """รูป Banner หน้าแรก: ทุกไฟล์รูปใน static/img/banners เรียงตามชื่อไฟล์"""
+    folder = os.path.join(current_app.static_folder, "img", "banners")
+    try:
+        names = sorted(n for n in os.listdir(folder) if n.lower().endswith(BANNER_EXTS))
+    except OSError:
+        names = []
+    return ["img/banners/" + n for n in names]
+
+
 @bp.route("/")
 def home():
-    anns = published_announcements()[:7]
+    all_anns = published_announcements()
+    anns = all_anns[:6]
+    notices = [a for a in all_anns if a.get("category_id") == "NOTICE"][:6]
     cats = {c["id"]: c for c in repo().all("announcement_categories")}
     rounds = [r for r in repo().where("recruitment_rounds", status="OPEN")]
     open_positions = [p for p in repo().where("activity_positions", status="OPEN")]
-    return render_template("public/home.html", anns=anns, cats=cats, rounds=rounds, open_positions=open_positions)
+    return render_template("public/home.html", anns=anns, notices=notices, cats=cats, rounds=rounds,
+                           open_positions=open_positions, banners=home_banners())
+
+
+@bp.route("/soon/<key>")
+def coming_soon(key):
+    if key not in COMING_SOON:
+        abort(404)
+    title, icon = COMING_SOON[key]
+    return render_template("public/coming_soon.html", title=title, icon=icon)
 
 
 @bp.route("/news")
