@@ -20,9 +20,10 @@ def create_app(config_object=Config, **overrides):
     from .views import (activities, admin, announcements, auth, cron, dashboard, documents, equipment,
                         public, recruitment, reports, team, tickets)
     from .views import line as line_view
+    from .views import org
 
     for mod in (public, auth, dashboard, admin, recruitment, activities, team, equipment, tickets,
-                announcements, documents, reports, cron, line_view):
+                announcements, documents, reports, cron, line_view, org):
         app.register_blueprint(mod.bp)
     csrf.exempt(line_view.webhook)  # LINE เรียกเข้ามาเอง ตรวจด้วยลายเซ็นแทน CSRF
     app.register_blueprint(exports.bp)

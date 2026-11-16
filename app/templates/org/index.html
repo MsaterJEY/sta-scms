@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}โครงสร้างองค์กร{% endblock %}
+
+{% macro person(p, big=False) %}
+<div class="org-card {{ 'org-card-lg' if big }}">
+  <div class="org-photo">{% if p.photo %}<img src="{{ p.photo }}" alt="รูป {{ p.full_name }}" loading="lazy">{% else %}<i class="bi bi-person"></i>{% endif %}</div>
+  <div class="org-name">{{ p.full_name }}</div>
+  <div class="org-pos">{{ p.position_name }}</div>
+  {% if p.program_name %}<div class="org-meta">สาขา{{ p.program_name }}</div>{% endif %}
+  {% if p.student_code %}<div class="org-meta">รหัสนักศึกษา {{ p.student_code }}</div>{% endif %}
+</div>
+{% endmacro %}
+
+{% block content %}
+{% call m.page_header('โครงสร้างองค์กร', 'สโมสรนักศึกษาคณะวิทยาศาสตร์ เทคโนโลยีและการเกษตร · ปีการศึกษา ' ~ year) %}
+<form><select class="form-select form-select-sm" name="year" aria-label="ปีการศึกษา" onchange="this.form.submit()">{% for y in years %}<option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>{% endfor %}</select></form>
+{% if can_manage %}<a class="btn btn-sm btn-sta" href="{{ url_for('org.manage', year=year) }}"><i class="bi bi-pencil"></i> ใส่ข้อมูล</a>{% endif %}
+{% endcall %}
+
+{% if not total %}
+<div class="panel text-center">{{ m.empty('ยังไม่มีข้อมูลโครงสร้างองค์กรของปีการศึกษา ' ~ year) }}</div>
+{% else %}
+{% if advisors %}
+<section class="org-section"><h2 class="org-title">อาจารย์ที่ปรึกษา</h2>
+  <div class="org-grid org-grid-center">{% for p in advisors %}{{ person(p) }}{% endfor %}</div></section>
+{% endif %}
+{% if top %}
+<section class="org-section"><h2 class="org-title">คณะกรรมการบริหารสโมสร</h2>
+  <div class="org-grid org-grid-center">{{ person(top[0], big=True) }}</div>
+  {% if top[1:] %}<div class="org-grid org-grid-center mt-3">{% for p in top[1:] %}{{ person(p) }}{% endfor %}</div>{% endif %}
+</section>
+{% endif %}
+{% for g in groups %}
+<section class="org-section"><h2 class="org-title">{{ g.name }}</h2>
+  {% if g.board %}<div class="org-grid">{% for p in g.board %}{{ person(p) }}{% endfor %}</div>{% endif %}
+  {% for label, members in g.others %}
+  <h3 class="org-subtitle">{{ label }}</h3>
+  <div class="org-grid">{% for p in members %}{{ person(p) }}{% endfor %}</div>
+  {% endfor %}
+</section>
+{% endfor %}
+{% if loose %}
+<section class="org-section"><h2 class="org-title">กรรมการและอนุกรรมการ</h2>
+  <div class="org-grid">{% for p in loose %}{{ person(p) }}{% endfor %}</div></section>
+{% endif %}
+{% endif %}
+{% endblock %}

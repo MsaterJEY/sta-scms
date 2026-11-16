@@ -38,7 +38,7 @@
 
 {% set guest_or_sci = not me or me.account_type == 'SCI' %}
 {% set staff_menu = me and (can('rec.approve') or can('eqp.self_approve') or can('eqp.manage') or can('ann.manage') or can('ann.draft') or can('faq.manage') or can('report.view') or can('eqp.report') or can('delegation.manage') or can('doc.upload') or can('team.manage') or can('team.delete') or 'BOARD' in my_roles or 'COMM' in my_roles or 'SUBCOMM' in my_roles or 'ADVISOR' in my_roles) %}
-{% set portal = me and request.endpoint not in ('public.home', 'public.news', 'public.news_detail', 'public.faq', 'public.coming_soon') and not portal_off %}
+{% set portal = me and request.endpoint not in ('public.home', 'public.news', 'public.news_detail', 'public.faq', 'public.coming_soon', 'org.index') and not portal_off %}
 <nav class="navbar {{ 'navbar-expand portal-top' if portal else 'navbar-expand-lg' }} topbar sticky-top shadow-sm">
   <div class="{{ 'container-fluid px-3 px-lg-4' if portal else 'container-xl' }}">
     {% if portal %}<button class="btn btn-side-toggle d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#sideMenu" aria-controls="sideMenu" aria-label="เปิดเมนู"><i class="bi bi-list"></i></button>{% endif %}
@@ -61,7 +61,7 @@
         <li class="nav-item dropdown">
           <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown" data-i18n="nav.org">องค์กร</a>
           <ul class="dropdown-menu dropdown-menu-lg-end dropdown-scroll">
-            <li><a class="dropdown-item" href="{{ url_for('public.coming_soon', key='org') }}"><i class="bi bi-diagram-3 me-2"></i>โครงสร้างสโมสร</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('org.index') }}"><i class="bi bi-diagram-3 me-2"></i>โครงสร้างองค์กร</a></li>
             <li><a class="dropdown-item" href="{{ url_for('public.news') }}"><i class="bi bi-megaphone me-2"></i>ข่าวประกาศ</a></li>
             {% if guest_or_sci or can('rec.manage') or can('rec.score') or can('rec.approve') %}
             <li><a class="dropdown-item" href="{{ url_for('recruit.index') }}"><i class="bi bi-person-badge me-2"></i>รับสมัครกรรมการ</a></li>
@@ -173,7 +173,7 @@
       <hr class="footer-line">
       <div class="text-center small" data-i18n="foot.copy2">© {{ footer_year }} สโมสรนักศึกษาคณะวิทยาศาสตร์ เทคโนโลยีและการเกษตร มหาวิทยาลัยราชภัฏยะลา</div>
       <div class="text-center footer-links mt-2">
-        <a href="{{ url_for('public.news') }}">ข่าวประกาศ</a> · <a href="{{ url_for('equipment.catalog') }}" data-i18n="svc.borrow">ยืม-คืน</a> ·
+        <a href="{{ url_for('org.index') }}">โครงสร้างองค์กร</a> · <a href="{{ url_for('public.news') }}">ข่าวประกาศ</a> · <a href="{{ url_for('equipment.catalog') }}" data-i18n="svc.borrow">ยืม-คืน</a> ·
         <a href="{{ url_for('team.index') }}">สมัครทีมงาน</a> · <a href="{{ url_for('tickets.index') }}">คำร้อง</a> · <a href="{{ url_for('public.faq') }}" data-i18n="svc.faq">คำถามที่พบบ่อย</a>
       </div>
     </div>

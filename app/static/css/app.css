@@ -462,3 +462,23 @@ a { text-underline-offset: .15em; }
 .banner-thumb { display: block; width: 100%; aspect-ratio: 16/10; object-fit: cover; border-radius: .75rem; border: 1px solid var(--sta-border); background: #DCE9DF; }
 .banner-off { opacity: .4; filter: grayscale(1); }
 .home-hero-img.is-default { object-fit: contain; }
+
+/* โครงสร้างองค์กร */
+.org-section { margin-bottom: 2.5rem; }
+.org-title { font-size: 1.3rem; font-weight: 700; text-align: center; margin-bottom: 1.25rem; }
+.org-title::after { content: ""; display: block; width: 3.5rem; height: 4px; border-radius: 2px; background: #E5B72F; margin: .5rem auto 0; }
+.org-subtitle { font-size: 1rem; font-weight: 600; color: var(--sta-muted); margin: 1.5rem 0 .75rem; text-align: center; }
+.org-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(11.5rem, 1fr)); gap: 1rem; }
+.org-grid-center { display: flex; flex-wrap: wrap; justify-content: center; }
+.org-grid-center .org-card { width: 12.5rem; }
+.org-card { background: #fff; border: 1px solid var(--sta-border); border-radius: 1rem; padding: 1.25rem .9rem; text-align: center; }
+.org-card-lg { width: 15rem !important; border-color: var(--sta-secondary); box-shadow: 0 8px 28px rgba(18, 59, 43, .10); }
+.org-photo { width: 6.5rem; height: 6.5rem; margin: 0 auto .8rem; border-radius: 50%; overflow: hidden; background: var(--sta-soft); color: var(--sta-secondary); display: flex; align-items: center; justify-content: center; font-size: 3rem; border: 3px solid #fff; outline: 2px solid var(--sta-border); }
+.org-card-lg .org-photo { width: 8.5rem; height: 8.5rem; outline-color: #E5B72F; }
+.org-photo img, .org-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.org-name { font-family: var(--sta-font-head); font-weight: 600; line-height: 1.35; }
+.org-pos { color: var(--sta-secondary); font-size: .9rem; font-weight: 500; margin-top: .15rem; }
+.org-meta { color: var(--sta-muted); font-size: .8rem; margin-top: .15rem; }
+.org-thumb { width: 2.5rem; height: 2.5rem; border-radius: 50%; overflow: hidden; background: var(--sta-soft); color: var(--sta-secondary); display: inline-flex; align-items: center; justify-content: center; }
+.org-thumb-lg { width: 4.5rem; height: 4.5rem; font-size: 1.6rem; }
+@media (max-width: 576px) { .org-grid { grid-template-columns: repeat(2, 1fr); gap: .7rem; } .org-grid-center .org-card { width: calc(50% - .5rem); } .org-card-lg { width: 100% !important; max-width: 16rem; } .org-photo { width: 5rem; height: 5rem; } }

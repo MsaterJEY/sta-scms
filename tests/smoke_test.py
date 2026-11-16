@@ -796,6 +796,39 @@ with app.app_context():
     check(not repo().all("home_banners") and "/static/img/banners/" in app.test_client().get("/").get_data(as_text=True),
           "deleting all banners restores the defaults")
 
+    print("== organization chart")
+    guest2 = app.test_client()
+    check("ยังไม่มีข้อมูล" in get_ok(guest2, "/org/").get_data(as_text=True), "public org page, empty state")
+    check(guest2.get("/org/manage").status_code == 302 and stu.get("/org/manage").status_code == 403
+          and pres.get("/org/manage").status_code == 403, "only the two secretaries can edit the org chart")
+    get_ok(psec, "/org/manage")
+    get_ok(asec, "/org/manage")
+    asec.post("/org/manage", data={"action": "save", "year": 2569, "first_name": "สมหญิง", "last_name": "ใจงาม", "position_id": "PRES",
+                                   "program_code": "65", "student_code": "406765099", "photo": (io.BytesIO(jpg), "p.jpg")},
+              content_type="multipart/form-data")
+    om = repo().where("org_members", first_name="สมหญิง")[0]
+    page = guest2.get("/org/").get_data(as_text=True)
+    check(all(x in page for x in ["สมหญิง ใจงาม", "นายกสโมสร", "เทคโนโลยีสารสนเทศ", "406765099", f"/org/photo/{om['id']}"]),
+          "public page shows name, position, program, student code and photo")
+    check(guest2.get(f"/org/photo/{om['id']}").data == jpg, "org photo is public")
+    asec.post("/org/manage", data={"action": "save", "year": 2569, "first_name": "x", "last_name": "y", "position_id": "NOPE"})
+    asec.post("/org/manage", data={"action": "save", "year": 2569, "first_name": "x", "last_name": "y", "position_id": "PRES", "student_code": "abc"})
+    check(len(repo().all("org_members")) == 1, "invalid position or student code rejected")
+    psec.post("/org/manage", data={"action": "import", "year": 2569})
+    imported = repo().where("org_members", academic_year=2569)
+    check(len(imported) > 5 and all(set(x) <= {"id", "academic_year", "position_id", "position_title", "first_name", "last_name", "student_code",
+                                                 "program_code", "photo_path", "order", "created_by", "created_at"} for x in imported),
+          "import from holders copies only the disclosable fields")
+    page = guest2.get("/org/").get_data(as_text=True)
+    check("กองบริหารและสัมพันธ์" in page and "@demo.local" not in page, "org page grouped by division, no account email")
+    n_before = len(imported)
+    psec.post("/org/manage", data={"action": "import", "year": 2569})
+    check(len(repo().where("org_members", academic_year=2569)) == n_before, "importing twice adds no duplicates")
+    get_ok(psec, f"/org/manage?edit={om['id']}")
+    psec.post("/org/manage", data={"action": "delete", "year": 2569, "member_id": om["id"]})
+    check(not repo().get("org_members", om["id"]) and "สมหญิง ใจงาม" not in guest2.get("/org/").get_data(as_text=True), "delete org member")
+    check("ยังไม่มีข้อมูล" in guest2.get("/org/?year=2570").get_data(as_text=True), "other years are separate")
+
     print("== admin menu access")
     asec_c = client_for("406765004")
     check("ผู้ถือตำแหน่งตามวาระ" in get_ok(asec_c, "/admin/holders", "holders as ADMIN_SEC").get_data(as_text=True), "ADMIN_SEC uses holders page")

@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}ใส่ข้อมูลโครงสร้างองค์กร{% endblock %}
+{% block content %}
+{% call m.page_header('ใส่ข้อมูลโครงสร้างองค์กร ปี ' ~ year, 'ข้อมูลในหน้านี้เปิดเผยต่อสาธารณะ: ชื่อ นามสกุล สาขา รหัสนักศึกษา ตำแหน่ง และรูปภาพ') %}
+<form><select class="form-select form-select-sm" name="year" aria-label="ปีการศึกษา" onchange="this.form.submit()">{% for y in years %}<option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>{% endfor %}</select></form>
+<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('org.index', year=year) }}" target="_blank">ดูหน้าสาธารณะ</a>
+{% endcall %}
+<div class="alert alert-warning small">ทุกรายการที่บันทึกจะแสดงให้บุคคลทั่วไปเห็นทันที กรุณาใส่เฉพาะข้อมูลของผู้ที่รับทราบและยินยอมให้เผยแพร่ชื่อ สาขา รหัสนักศึกษา และรูปภาพ</div>
+<div class="row g-3">
+<div class="col-lg-7">
+  <div class="card"><div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">รายชื่อ ({{ rows|length }})
+    <form method="post" data-confirm="นำเข้าผู้ถือตำแหน่งระดับบอร์ดของปี {{ year }}? ระบบจะดึงเฉพาะชื่อ นามสกุล สาขา รหัสนักศึกษา และตำแหน่ง แล้วเผยแพร่ทันที">{{ m.csrf() }}<input type="hidden" name="action" value="import"><input type="hidden" name="year" value="{{ year }}">
+      <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-download"></i> นำเข้าจากผู้ถือตำแหน่ง</button></form></div>
+    <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+      <thead><tr><th></th><th>ชื่อ-นามสกุล</th><th>ตำแหน่ง</th><th>สาขา</th><th>รหัสนักศึกษา</th><th></th></tr></thead><tbody>
+      {% for r in rows %}
+      <tr><td><span class="org-thumb">{% if r.photo %}<img src="{{ r.photo }}" alt="">{% else %}<i class="bi bi-person"></i>{% endif %}</span></td>
+        <td>{{ r.full_name }}</td><td class="small">{{ r.position_name }}{% if r.division_name %}<div class="text-secondary">{{ r.division_name }}</div>{% endif %}</td>
+        <td class="small">{{ r.program_name or '-' }}</td><td class="small">{{ r.student_code or '-' }}</td>
+        <td class="text-nowrap"><a class="btn btn-sm btn-outline-secondary" href="{{ url_for('org.manage', year=year, edit=r.id) }}">แก้ไข</a></td></tr>
+      {% else %}<tr><td colspan="6">{{ m.empty('ยังไม่มีรายชื่อ — เพิ่มทีละคนด้านขวา หรือกด "นำเข้าจากผู้ถือตำแหน่ง"') }}</td></tr>{% endfor %}
+      </tbody></table></div></div>
+</div>
+<div class="col-lg-5"><div class="card"><div class="card-header">{{ 'แก้ไขข้อมูล' if edit else 'เพิ่มรายชื่อ' }}</div><div class="card-body">
+  <form method="post" enctype="multipart/form-data">{{ m.csrf() }}<input type="hidden" name="action" value="save"><input type="hidden" name="year" value="{{ year }}">
+    {% if edit %}<input type="hidden" name="member_id" value="{{ edit.id }}">{% endif %}
+    <div class="row g-2 mb-2">
+      <div class="col-6"><label class="form-label" for="of">ชื่อ <span class="text-danger">*</span></label><input class="form-control" id="of" name="first_name" maxlength="80" required value="{{ edit.first_name if edit else '' }}"></div>
+      <div class="col-6"><label class="form-label" for="ol">นามสกุล <span class="text-danger">*</span></label><input class="form-control" id="ol" name="last_name" maxlength="80" required value="{{ edit.last_name if edit else '' }}"></div>
+    </div>
+    <label class="form-label" for="op">ตำแหน่ง <span class="text-danger">*</span></label>
+    <select class="form-select mb-2" id="op" name="position_id" required><option value="">- เลือกตำแหน่ง -</option>
+      {% for p in positions %}<option value="{{ p.id }}" {% if edit and edit.position_id == p.id %}selected{% endif %}>{{ p.name }}</option>{% endfor %}</select>
+    <label class="form-label" for="ot">ชื่อตำแหน่งที่แสดง <span class="text-secondary fw-normal">(ไม่บังคับ ถ้าต้องการให้ต่างจากชื่อในผัง)</span></label>
+    <input class="form-control mb-2" id="ot" name="position_title" maxlength="120" value="{{ edit.position_title if edit else '' }}">
+    <label class="form-label" for="og">สาขา</label>
+    <select class="form-select mb-2" id="og" name="program_code"><option value="">- ไม่ระบุ -</option>
+      {% for p in programs %}<option value="{{ p.id }}" {% if edit and edit.program_code == p.id %}selected{% endif %}>{{ p.name_th }}</option>{% endfor %}</select>
+    <div class="row g-2 mb-2">
+      <div class="col-8"><label class="form-label" for="os">รหัสนักศึกษา</label><input class="form-control" id="os" name="student_code" inputmode="numeric" maxlength="20" value="{{ edit.student_code if edit else '' }}"></div>
+      <div class="col-4"><label class="form-label" for="oo">ลำดับ</label><input class="form-control" id="oo" type="number" name="order" value="{{ edit.order if edit else 0 }}" title="เลขน้อยแสดงก่อน เมื่ออยู่ระดับเดียวกัน"></div>
+    </div>
+    <label class="form-label" for="oi">รูปภาพ</label>
+    <input class="form-control mb-1" id="oi" type="file" name="photo" accept="image/jpeg,image/png,image/webp">
+    <div class="form-text mb-2">JPG/PNG/WEBP ไม่เกิน {{ config.MAX_FILE_MB }} MB — แนะนำรูปหน้าตรงสัดส่วน 1:1</div>
+    {% if edit and edit.photo %}<div class="d-flex align-items-center gap-3 mb-2"><span class="org-thumb org-thumb-lg"><img src="{{ edit.photo }}" alt="รูปปัจจุบัน"></span>
+      <div class="form-check"><input class="form-check-input" type="checkbox" name="remove_photo" id="orp"><label class="form-check-label small" for="orp">ลบรูปนี้</label></div></div>{% endif %}
+    <button class="btn btn-sta mt-2">บันทึก</button>{% if edit %} <a class="btn btn-link mt-2" href="{{ url_for('org.manage', year=year) }}">ยกเลิก</a>{% endif %}
+  </form>
+  {% if edit %}<form method="post" class="mt-3" data-confirm="ลบ {{ edit.first_name }} {{ edit.last_name }} ออกจากโครงสร้างองค์กร?">{{ m.csrf() }}<input type="hidden" name="action" value="delete"><input type="hidden" name="year" value="{{ year }}"><input type="hidden" name="member_id" value="{{ edit.id }}">
+    <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i> ลบรายการนี้</button></form>{% endif %}
+</div></div></div>
+</div>
+{% endblock %}
