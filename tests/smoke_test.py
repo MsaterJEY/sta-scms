@@ -799,9 +799,12 @@ with app.app_context():
     print("== admin menu access")
     asec_c = client_for("406765004")
     check("ผู้ถือตำแหน่งตามวาระ" in get_ok(asec_c, "/admin/holders", "holders as ADMIN_SEC").get_data(as_text=True), "ADMIN_SEC uses holders page")
-    home_html = asec_c.get("/").get_data(as_text=True)
+    home_html = asec_c.get("/app/").get_data(as_text=True)
     check("/admin/holders" in home_html and "/admin/users" not in home_html and "/admin/settings" not in home_html,
-          "ADMIN_SEC menu shows only holders")
+          "ADMIN_SEC side menu shows only holders")
+    pub_html = admin.get("/").get_data(as_text=True)
+    check("/admin/users" not in pub_html and "/equipment/manage" not in pub_html and "/app/" in pub_html,
+          "public top menu has no staff/admin items, only a link into the portal")
     for u in ["/admin/users", "/admin/positions", "/admin/years", "/admin/programs", "/admin/settings", "/admin/permissions",
               "/admin/audit", "/export/audit?fmt=tsv"]:
         check(asec_c.get(u).status_code == 403, f"ADMIN_SEC blocked from {u}")

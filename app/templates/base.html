@@ -57,23 +57,9 @@
       <ul class="navbar-nav nav-pills ms-auto align-items-lg-center gap-lg-1">
         <li class="nav-item {{ 'd-none d-md-block' if portal }}"><a class="nav-link {% if request.endpoint == 'public.home' %}active{% endif %}" href="{{ url_for('public.home') }}" data-i18n="nav.home">หน้าหลัก</a></li>
         {% if not portal %}
-        {% if me and can('eqp.manage') %}
-        <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle {% if request.blueprint == 'equipment' %}active{% endif %}" href="#" data-bs-toggle="dropdown" data-i18n="nav.equipment">อุปกรณ์</a>
-          <ul class="dropdown-menu">
-            <li><a class="dropdown-item" href="{{ url_for('equipment.catalog') }}"><i class="bi bi-box-seam me-2"></i>ยืม-คืนอุปกรณ์</a></li>
-            <li><h6 class="dropdown-header">ฝ่ายอุปกรณ์</h6></li>
-            <li><a class="dropdown-item" href="{{ url_for('equipment.requests_list') }}">คำขอยืม</a></li>
-            <li><a class="dropdown-item" href="{{ url_for('equipment.manage') }}">ทะเบียนอุปกรณ์</a></li>
-            <li><a class="dropdown-item" href="{{ url_for('equipment.maintenance') }}">ซ่อมบำรุง</a></li>
-            <li><a class="dropdown-item" href="{{ url_for('equipment.fines') }}">ค่าชดใช้</a></li>
-          </ul>
-        </li>
-        {% else %}
         <li class="nav-item"><a class="nav-link {% if request.blueprint == 'equipment' %}active{% endif %}" href="{{ url_for('equipment.catalog') }}" data-i18n="nav.equipment">อุปกรณ์</a></li>
-        {% endif %}
         <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle {% if request.blueprint in ('recruit', 'activities', 'team', 'admin', 'documents', 'reports', 'announcements') %}active{% endif %}" href="#" data-bs-toggle="dropdown" data-i18n="nav.org">องค์กร</a>
+          <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown" data-i18n="nav.org">องค์กร</a>
           <ul class="dropdown-menu dropdown-menu-lg-end dropdown-scroll">
             <li><a class="dropdown-item" href="{{ url_for('public.coming_soon', key='org') }}"><i class="bi bi-diagram-3 me-2"></i>โครงสร้างสโมสร</a></li>
             <li><a class="dropdown-item" href="{{ url_for('public.news') }}"><i class="bi bi-megaphone me-2"></i>ข่าวประกาศ</a></li>
@@ -82,32 +68,9 @@
             {% if activities_on %}<li><a class="dropdown-item" href="{{ url_for('activities.index') }}"><i class="bi bi-calendar-event me-2"></i>กิจกรรมและทีมงาน</a></li>{% endif %}
             {% endif %}
             <li><a class="dropdown-item" href="{{ url_for('team.index') }}"><i class="bi bi-people me-2"></i>รับสมัครทีมงานกิจกรรม</a></li>
-            {% if staff_menu %}
-            <li><h6 class="dropdown-header">งานสโมสร</h6></li>
-            {% if can('rec.approve') or can('eqp.self_approve') %}
-            <li><a class="dropdown-item" href="{{ url_for('dashboard.approvals') }}">รายการรออนุมัติ</a></li>{% endif %}
-            {% if can('team.manage') or can('team.delete') %}<li><a class="dropdown-item" href="{{ url_for('team.manage') }}">จัดการรับสมัครทีมงาน</a></li>{% endif %}
-            {% if can('ann.manage') or can('ann.draft') %}<li><a class="dropdown-item" href="{{ url_for('announcements.manage') }}">{{ 'จัดการประกาศ' if can('ann.manage') else 'ร่างประกาศ' }}</a></li>{% endif %}
-            {% if can('faq.manage') %}<li><a class="dropdown-item" href="{{ url_for('announcements.faq_manage') }}">จัดการ FAQ</a></li>{% endif %}
-            {% if 'BOARD' in my_roles or 'COMM' in my_roles or 'SUBCOMM' in my_roles or can('report.view') %}<li><a class="dropdown-item" href="{{ url_for('documents.index') }}">เอกสาร</a></li>{% endif %}
-            {% if can('report.view') or can('eqp.report') or can('rec.manage') %}
-            <li><a class="dropdown-item" href="{{ url_for('reports.index') }}">รายงานและสถิติ</a></li>{% endif %}
-            {% if can('dashboard.advisor') %}<li><a class="dropdown-item" href="{{ url_for('reports.advisor') }}">Dashboard สรุป</a></li>{% endif %}
-            {% if activities_on and can('delegation.manage') %}
-            <li><a class="dropdown-item" href="{{ url_for('admin.delegations') }}">มอบสิทธิ์คัดกรอง</a></li>{% endif %}
-            {% endif %}
-            {% if me and (can('admin.manage') or can('admin.holders')) %}
-            <li><h6 class="dropdown-header">ผู้ดูแลระบบ</h6></li>
-            {% if can('admin.manage') %}<li><a class="dropdown-item" href="{{ url_for('admin.users') }}">บัญชีผู้ใช้</a></li>{% endif %}
-            {% if can('admin.holders') %}<li><a class="dropdown-item" href="{{ url_for('admin.holders') }}">ผู้ถือตำแหน่งตามวาระ</a></li>{% endif %}
-            {% if can('admin.manage') %}
-            <li><a class="dropdown-item" href="{{ url_for('admin.positions') }}">กองและตำแหน่ง</a></li>
-            <li><a class="dropdown-item" href="{{ url_for('admin.years') }}">ปีการศึกษา</a></li>
-            <li><a class="dropdown-item" href="{{ url_for('admin.programs') }}">ตารางสาขา</a></li>
-            <li><a class="dropdown-item" href="{{ url_for('admin.permissions') }}">สิทธิ์</a></li>
-            <li><a class="dropdown-item" href="{{ url_for('admin.system_settings') }}">ตั้งค่าระบบ</a></li>
-            {% endif %}
-            {% if can('audit.view') %}<li><a class="dropdown-item" href="{{ url_for('admin.audit_log') }}">Audit Log</a></li>{% endif %}
+            {% if me %}
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="{{ url_for('dashboard.index') }}"><i class="bi bi-grid me-2"></i>{{ 'งานสโมสรและผู้ดูแลระบบ' if staff_menu or can('admin.manage') or can('admin.holders') else 'หน้าของฉัน' }}</a></li>
             {% endif %}
           </ul>
         </li>
