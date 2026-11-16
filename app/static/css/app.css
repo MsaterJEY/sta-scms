@@ -487,3 +487,9 @@ a { text-underline-offset: .15em; }
 .eqp-photo { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: .7rem; border: 1px solid var(--sta-border); background: #DCE9DF; }
 .eqp-qr { display: block; width: 11rem; max-width: 100%; border-radius: .7rem; border: 1px solid var(--sta-border); background: #fff; }
 .eqp-pay { background: #F5F9F6; border: 1px solid #E6EEE8; border-radius: .85rem; padding: .9rem; }
+
+/* ส่วนท้ายติดขอบล่างเสมอ: หน้าที่เนื้อหาสั้นจะไม่เหลือพื้นขาวใต้แถบสีเขียว */
+body { min-height: 100vh; display: flex; flex-direction: column; }
+body > main, body > .portal { flex: 1 0 auto; width: 100%; }
+body > .site-footer { flex-shrink: 0; }
+@media print { body { display: block; min-height: 0; } }
