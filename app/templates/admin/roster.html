@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}ทะเบียนกรรมการ/อนุกรรมการ{% endblock %}
+{% block content %}
+{% call m.page_header('ทะเบียนกรรมการ/อนุกรรมการ ปี ' ~ year, 'นำเข้าจากไฟล์ที่ดาวน์โหลดจาก Google Sheet — คนที่ยังไม่มีบัญชีจะได้ตำแหน่งเองเมื่อสมัครสมาชิก') %}
+<form><select class="form-select form-select-sm" name="year" aria-label="ปีการศึกษา" onchange="this.form.submit()">{% for y in years %}<option value="{{ y.id }}" {% if y.id|int == year %}selected{% endif %}>{{ y.id }}</option>{% endfor %}</select></form>
+{{ m.export_buttons('member_roster', dict(args.to_dict(), year=year)) }}
+{% endcall %}
+<div class="row g-3 mb-3">
+  {% for k, t in types.items() %}
+  <div class="col-6 col-md-3"><div class="card stat"><div class="card-body"><div class="small text-secondary">{{ t[0] }}ในทะเบียน</div><div class="num">{{ stats[k].all }}</div></div></div></div>
+  <div class="col-6 col-md-3"><div class="card stat"><div class="card-body"><div class="small text-secondary">{{ t[0] }}ที่มีบัญชีแล้ว</div><div class="num">{{ stats[k].linked }}</div></div></div></div>
+  {% endfor %}
+</div>
+<div class="row g-3">
+<div class="col-lg-8">
+  <form class="row g-2 mb-3"><input type="hidden" name="year" value="{{ year }}">
+    <div class="col-12 col-md-4"><input class="form-control" name="q" value="{{ args.get('q', '') }}" placeholder="รหัสนักศึกษา / ชื่อ"></div>
+    <div class="col-6 col-md-3"><select class="form-select" name="type"><option value="">ทุกประเภท</option>{% for k, t in types.items() %}<option value="{{ k }}" {% if args.get('type') == k %}selected{% endif %}>{{ t[0] }}</option>{% endfor %}</select></div>
+    <div class="col-6 col-md-3"><select class="form-select" name="link"><option value="">ทุกสถานะบัญชี</option><option value="pending" {% if args.get('link') == 'pending' %}selected{% endif %}>รอสมัครสมาชิก</option></select></div>
+    <div class="col-12 col-md-2 d-grid"><button class="btn btn-sta">กรอง</button></div>
+  </form>
+  <div class="card"><div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+    <thead><tr><th>รหัสนักศึกษา</th><th>ชื่อ-นามสกุล</th><th>ประเภท</th><th>กอง / ฝ่าย</th><th>สถานะในสโม</th><th>บัญชี</th><th></th></tr></thead><tbody>
+    {% for r in rows %}
+    <tr><td>{{ r.student_code }}</td><td>{{ r.first_name }} {{ r.last_name }}<div class="small text-secondary">{{ r.program }}{% if r.year_level %} · ปี {{ r.year_level }}{% endif %}</div></td>
+      <td class="small">{{ types[r.member_type][0] }}</td>
+      <td class="small">{{ divisions.get(r.division_id, {}).get('name', '-') }}{% if r.unit %}<div class="text-secondary">{{ r.unit }}</div>{% endif %}</td>
+      <td class="small">{{ r.status_text or '-' }}</td>
+      <td>{% if r.user_id %}<span class="badge text-bg-success">มีบัญชีแล้ว</span>{% else %}<span class="badge text-bg-warning">รอสมัครสมาชิก</span>{% endif %}</td>
+      <td><form method="post" data-confirm="ลบ {{ r.first_name }} {{ r.last_name }} ออกจากทะเบียน? ตำแหน่งที่ได้จากทะเบียนจะสิ้นสุดทันที">{{ m.csrf() }}<input type="hidden" name="action" value="delete"><input type="hidden" name="year" value="{{ year }}"><input type="hidden" name="roster_id" value="{{ r.id }}">
+        <button class="btn btn-sm btn-outline-danger" aria-label="ลบ"><i class="bi bi-trash"></i></button></form></td></tr>
+    {% else %}<tr><td colspan="7">{{ m.empty('ยังไม่มีรายชื่อในทะเบียน — อัปโหลดไฟล์ด้านขวา') }}</td></tr>{% endfor %}
+    </tbody></table></div></div>
+</div>
+<div class="col-lg-4">
+  <div class="card mb-3"><div class="card-header">นำเข้าจากไฟล์</div><div class="card-body">
+    <form method="post" enctype="multipart/form-data">{{ m.csrf() }}<input type="hidden" name="action" value="upload"><input type="hidden" name="year" value="{{ year }}">
+      <label class="form-label" for="rt">ไฟล์นี้เป็นรายชื่อ</label>
+      <select class="form-select mb-2" id="rt" name="member_type" required><option value="">- เลือก -</option>{% for k, t in types.items() %}<option value="{{ k }}">{{ t[0] }}</option>{% endfor %}</select>
+      <label class="form-label" for="rf">ไฟล์ Excel (.xlsx) หรือ CSV</label>
+      <input class="form-control mb-2" id="rf" type="file" name="file" accept=".xlsx,.csv" required>
+      <button class="btn btn-sta">อ่านไฟล์และดูตัวอย่าง</button>
+    </form>
+    <div class="form-text mt-3">ใน Google Sheet: ไฟล์ &gt; ดาวน์โหลด &gt; Microsoft Excel (.xlsx) — ดาวน์โหลดทีละชีต ถ้าไฟล์มีหลายชีตระบบอ่านชีตแรก</div>
+    <div class="form-text">คอลัมน์ที่ใช้: รหัสนักศึกษา, ชื่อ - นามสกุล, สาขาวิชา, ฝ่าย, ชั้นปี, สถานะในสโม · คอลัมน์อื่นเช่น LineID ระบบไม่เก็บ</div>
+    <div class="form-text">นำเข้าซ้ำได้: รายชื่อเดิมถูกปรับตามไฟล์ล่าสุด ไม่เกิดรายการซ้ำ</div>
+  </div></div>
+  <div class="card"><div class="card-header">ล้างทะเบียนปี {{ year }}</div><div class="card-body">
+    <form method="post" class="d-flex gap-2" data-confirm="ล้างทะเบียนทั้งประเภทของปี {{ year }}? ตำแหน่งที่ได้จากทะเบียนจะสิ้นสุดทั้งหมด">{{ m.csrf() }}<input type="hidden" name="action" value="clear"><input type="hidden" name="year" value="{{ year }}">
+      <select class="form-select form-select-sm" name="member_type" required>{% for k, t in types.items() %}<option value="{{ k }}">{{ t[0] }}</option>{% endfor %}</select>
+      <button class="btn btn-sm btn-outline-danger text-nowrap">ล้างทั้งหมด</button></form>
+    <div class="form-text">ใช้เมื่อนำเข้าผิดไฟล์ ตำแหน่งที่ผู้ดูแลเพิ่มเองที่หน้าผู้ถือตำแหน่งไม่ถูกลบ</div>
+  </div></div>
+</div>
+</div>
+{% endblock %}

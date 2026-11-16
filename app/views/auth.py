@@ -90,6 +90,8 @@ def register():
         repo().add("consents", {"user_id": uid, "purpose": "REGISTER", "text": CONSENT_PURPOSES["REGISTER"],
                                 "granted_at": now_iso(), "expires_at": plus_days(int(setting("consent_valid_days")))})
         audit("user.register", "user", uid, new={"account_type": data["account_type"]}, actor_id=uid)
+        from .roster import attach_user
+        attach_user(dict(data, id=uid))
         if data.get("needs_review") or data.get("over_duration"):
             admins = [u["id"] for u in repo().all("users") if "SYS_ADMIN" in (u.get("system_roles") or [])]
             notify(admins, "มีบัญชีรอตรวจสาขา/ชั้นปี", f"{data.get('student_code')}", url_for("admin.users", review=1))
@@ -138,6 +140,8 @@ def login():
         session["uid"] = u["id"]
         session.permanent = True
         audit("user.login", "user", u["id"], actor_id=u["id"])
+        from .roster import attach_user
+        attach_user(u)
         return redirect(_safe_next(request.args.get("next")))
     return render_template("auth/login.html")
 

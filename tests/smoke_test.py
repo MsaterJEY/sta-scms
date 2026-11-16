@@ -829,6 +829,74 @@ with app.app_context():
     check(not repo().get("org_members", om["id"]) and "สมหญิง ใจงาม" not in guest2.get("/org/").get_data(as_text=True), "delete org member")
     check("ยังไม่มีข้อมูล" in guest2.get("/org/?year=2570").get_data(as_text=True), "other years are separate")
 
+    print("== member roster import (CSV / Excel from Google Sheet)")
+    from openpyxl import Workbook
+    get_ok(asec, "/admin/roster/")
+    check(stu.get("/admin/roster/").status_code == 403, "student cannot open the roster")
+    csv_text = ("ลำดับการสมัคร,รหัสนักศึกษา,ชื่อ - นามสกุล,สาขาวิชา,ฝ่าย,ชั้นปี,สถานะในสโม,LineID\n"
+                "1,406865010,นายนักศึกษา ทดสอบ,เทคโนโลยีสารสนเทศ,ฝ่ายกีฬา,2,ปกติ,line-secret-1\n"
+                "2,406765555,นางสาวใหม่ ยังไม่สมัคร,คณิตศาสตร์,ฝ่ายสื่อ,1,ปกติ,line-secret-2\n"
+                "3,406765556,นายลา ออกแล้ว,คณิตศาสตร์,ฝ่ายสื่อ,1,ลาออก,line-secret-3\n"
+                "4,,ไม่มีรหัส,,,,,\n")
+    r = asec.post("/admin/roster/", data={"action": "upload", "year": 2569, "member_type": "SUBCOMM",
+                                          "file": (io.BytesIO(csv_text.encode("utf-8-sig")), "sub.csv")},
+                  content_type="multipart/form-data")
+    imp = repo().all("roster_imports")[0]
+    check(r.status_code == 302 and len(imp["rows"]) == 3 and "line-secret" not in str(imp), "CSV parsed, LineID not kept")
+    check(imp["rows"][0]["first_name"] == "นักศึกษา" and imp["rows"][1]["first_name"] == "ใหม่" and imp["rows"][1]["last_name"] == "ยังไม่สมัคร",
+          "name prefix removed and name split")
+    pv = get_ok(asec, f"/admin/roster/import/{imp['id']}").get_data(as_text=True)
+    check("ฝ่ายกีฬา" in pv and "ลาออก" in pv and not repo().all("member_roster"), "preview shows units and statuses, nothing saved yet")
+    check(psec.get(f"/admin/roster/import/{imp['id']}").status_code in (403, 404), "another user cannot open the pending import")
+    units = sorted({x["unit"] for x in imp["rows"]})
+    statuses = sorted({x["status"] for x in imp["rows"]})
+    form = {"action": "confirm"}
+    form.update({f"unit_{i}": ("ACTIVITY" if "กีฬา" in u else "PR") for i, u in enumerate(units)})
+    form.update({f"status_{i}": "1" for i, s in enumerate(statuses) if s == "ปกติ"})
+    asec.post(f"/admin/roster/import/{imp['id']}", data=form)
+    ros = {x["student_code"]: x for x in repo().all("member_roster")}
+    check(set(ros) == {"406865010", "406765555"} and ros["406865010"]["position_id"] == "SUB_ACTIVITY" and ros["406765555"]["position_id"] == "SUB_PR",
+          "import saves chosen statuses with mapped divisions")
+    check(ros["406865010"]["user_id"] == stu_id and repo().where("position_holders", user_id=stu_id, position_id="SUB_ACTIVITY", status="ACTIVE"),
+          "existing account gets the position immediately")
+    check(ros["406765555"]["user_id"] is None, "member without an account waits for registration")
+    newc = app.test_client()
+    newc.post("/register", data={"mode": "student", "student_code": "406765555", "first_name": "ใหม่", "last_name": "ยังไม่สมัคร",
+                                 "email": "new555@demo.local", "password": PW, "password2": PW, "consent": "1"})
+    new_u = repo().where("users", student_code="406765555")[0]
+    check(repo().where("position_holders", user_id=new_u["id"], position_id="SUB_PR", status="ACTIVE")
+          and repo().get("member_roster", ros["406765555"]["id"])["user_id"] == new_u["id"], "position attaches when the member registers")
+    check("อนุกรรมการ" in newc.get("/team/my").get_data(as_text=True), "team recruitment recognises the imported member")
+    wb = Workbook()
+    ws = wb.active
+    ws.append(["ลำดับ", "รหัสนักศึกษา", "ชื่อ - สกุล", "สาขาวิชา", "ฝ่ายเดิม", "ชั้นปี", "สถานะในสโม"])
+    ws.append([1, 406865010, "นาย นักศึกษา ทดสอบ", "เทคโนโลยีสารสนเทศ", "ฝ่ายแผนและนโยบาย", 2, "ปกติ"])
+    buf = io.BytesIO()
+    wb.save(buf)
+    asec.post("/admin/roster/", data={"action": "upload", "year": 2569, "member_type": "COMM", "file": (io.BytesIO(buf.getvalue()), "comm.xlsx")},
+              content_type="multipart/form-data")
+    imp2 = repo().all("roster_imports")[0]
+    check(imp2["rows"][0]["student_code"] == "406865010" and imp2["rows"][0]["unit"] == "ฝ่ายแผนและนโยบาย", "Excel parsed with numeric student code")
+    check('value="POLICY" selected' in asec.get(f"/admin/roster/import/{imp2['id']}").get_data(as_text=True), "division guessed from unit name")
+    asec.post(f"/admin/roster/import/{imp2['id']}", data={"action": "confirm", "unit_0": "POLICY", "status_0": "1"})
+    check(repo().where("position_holders", user_id=stu_id, position_id="COMM_POLICY", status="ACTIVE"), "committee import from Excel")
+    n_h = len(repo().where("position_holders", user_id=stu_id))
+    asec.post("/admin/roster/", data={"action": "upload", "year": 2569, "member_type": "COMM", "file": (io.BytesIO(buf.getvalue()), "comm.xlsx")},
+              content_type="multipart/form-data")
+    asec.post(f"/admin/roster/import/{repo().all('roster_imports')[0]['id']}", data={"action": "confirm", "unit_0": "POLICY", "status_0": "1"})
+    check(len(repo().where("position_holders", user_id=stu_id)) == n_h and len(repo().where("member_roster", student_code="406865010")) == 2,
+          "re-importing the same file creates no duplicates")
+    r = asec.get("/export/member_roster?fmt=tsv&year=2569")
+    check(r.status_code == 200 and "406765555" in r.get_data(as_text=True), "roster export")
+    asec.post("/admin/roster/", data={"action": "upload", "year": 2569, "member_type": "COMM", "file": (io.BytesIO(b"not excel"), "x.xlsx")},
+              content_type="multipart/form-data")
+    check(not repo().all("roster_imports"), "broken file rejected")
+    asec.post("/admin/roster/", data={"action": "delete", "year": 2569, "roster_id": ros["406865010"]["id"]})
+    check(not repo().where("position_holders", user_id=stu_id, position_id="SUB_ACTIVITY", status="ACTIVE"), "removing from roster ends that position")
+    asec.post("/admin/roster/", data={"action": "clear", "year": 2569, "member_type": "COMM"})
+    asec.post("/admin/roster/", data={"action": "clear", "year": 2569, "member_type": "SUBCOMM"})
+    check(not repo().all("member_roster") and not repo().where("position_holders", user_id=new_u["id"], status="ACTIVE"), "clear roster ends roster positions")
+
     print("== admin menu access")
     asec_c = client_for("406765004")
     check("ผู้ถือตำแหน่งตามวาระ" in get_ok(asec_c, "/admin/holders", "holders as ADMIN_SEC").get_data(as_text=True), "ADMIN_SEC uses holders page")

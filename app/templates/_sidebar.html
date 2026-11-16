@@ -59,7 +59,8 @@
     {% if can('admin.manage') or can('admin.holders') or can('audit.view') %}
     <div class="side-group">ผู้ดูแลระบบ</div>
     {% if can('admin.manage') %}{{ item('admin.users', 'person-gear', 'บัญชีผู้ใช้', also=('admin.user_edit',)) }}{% endif %}
-    {% if can('admin.holders') %}{{ item('admin.holders', 'person-vcard', 'ผู้ถือตำแหน่งตามวาระ') }}{% endif %}
+    {% if can('admin.holders') %}{{ item('admin.holders', 'person-vcard', 'ผู้ถือตำแหน่งตามวาระ') }}
+    {{ item('roster.index', 'file-earmark-spreadsheet', 'ทะเบียนกรรมการ/อนุฯ', also=('roster.preview',)) }}{% endif %}
     {% if can('admin.manage') %}
     {{ item('admin.positions', 'diagram-3', 'กองและตำแหน่ง') }}
     {{ item('admin.years', 'calendar3', 'ปีการศึกษา') }}

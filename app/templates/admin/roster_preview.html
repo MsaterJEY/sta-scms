@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}ตรวจข้อมูลก่อนนำเข้า{% endblock %}
+{% block content %}
+{% call m.page_header('ตรวจข้อมูลก่อนนำเข้า: ' ~ label ~ ' ปี ' ~ year, imp.filename ~ ' · ยังไม่มีการบันทึกจนกว่าจะกดยืนยัน') %}{% endcall %}
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-3"><div class="card stat"><div class="card-body"><div class="small text-secondary">แถวที่อ่านได้</div><div class="num">{{ rows|length }}</div></div></div></div>
+  <div class="col-6 col-md-3"><div class="card stat"><div class="card-body"><div class="small text-secondary">มีบัญชีในระบบแล้ว</div><div class="num">{{ have_account }}</div></div></div></div>
+  <div class="col-6 col-md-3"><div class="card stat"><div class="card-body"><div class="small text-secondary">รอสมัครสมาชิก</div><div class="num">{{ rows|length - have_account }}</div></div></div></div>
+  <div class="col-6 col-md-3"><div class="card stat"><div class="card-body"><div class="small text-secondary">แถวที่ข้าม (ไม่มีรหัส/ชื่อ หรือซ้ำ)</div><div class="num">{{ imp.skipped }}</div></div></div></div>
+</div>
+<form method="post">{{ m.csrf() }}
+<div class="row g-3">
+<div class="col-lg-5">
+  <div class="card mb-3"><div class="card-header">1. จับคู่ "ฝ่าย" ในไฟล์กับกองในระบบ</div><div class="card-body">
+    <p class="small text-secondary">ระบบเดาให้จากชื่อฝ่าย ตรวจและแก้ได้ แถวของฝ่ายที่เลือก "ไม่นำเข้า" จะถูกข้าม</p>
+    {% for u in units %}
+    <div class="row g-2 align-items-center mb-2">
+      <div class="col-6"><label class="small" for="u{{ loop.index0 }}">{{ u or '(ไม่ได้ระบุฝ่าย)' }} <span class="text-secondary">· {{ counts[u] }} คน</span></label></div>
+      <div class="col-6"><select class="form-select form-select-sm" id="u{{ loop.index0 }}" name="unit_{{ loop.index0 }}"><option value="">ไม่นำเข้า</option>
+        {% for d, name in choices %}<option value="{{ d }}" {% if guess[u] == d %}selected{% endif %}>{{ name }}</option>{% endfor %}</select></div>
+    </div>
+    {% endfor %}
+    {% if not choices %}<div class="alert alert-danger small mb-0">ผังของปี {{ year }} ยังไม่มีตำแหน่ง{{ label }}ประจำกอง เพิ่มที่หน้ากองและตำแหน่งก่อน</div>{% endif %}
+  </div></div>
+  <div class="card mb-3"><div class="card-header">2. เลือก "สถานะในสโม" ที่จะนำเข้า</div><div class="card-body">
+    <p class="small text-secondary">เอาเครื่องหมายออกจากสถานะที่ไม่ควรได้ตำแหน่ง เช่น ลาออก หรือพ้นสภาพ</p>
+    {% for s in statuses %}
+    <div class="form-check"><input class="form-check-input" type="checkbox" name="status_{{ loop.index0 }}" id="s{{ loop.index0 }}" checked>
+      <label class="form-check-label" for="s{{ loop.index0 }}">{{ s or '(ว่าง)' }} <span class="text-secondary small">· {{ st_counts[s] }} คน</span></label></div>
+    {% endfor %}
+  </div></div>
+  <div class="d-flex gap-2">
+    <button name="action" value="confirm" class="btn btn-sta" {% if not choices %}disabled{% endif %}>ยืนยันนำเข้า</button>
+    <button name="action" value="cancel" class="btn btn-outline-secondary" formnovalidate>ยกเลิก</button>
+  </div>
+</div>
+<div class="col-lg-7"><div class="card"><div class="card-header">ตัวอย่างข้อมูลที่อ่านได้ ({{ [rows|length, 50]|min }} จาก {{ rows|length }} แถว)</div>
+  <div class="table-responsive"><table class="table table-sm mb-0">
+    <thead><tr><th>รหัสนักศึกษา</th><th>ชื่อ</th><th>นามสกุล</th><th>สาขาวิชา</th><th>ฝ่าย</th><th>ชั้นปี</th><th>สถานะ</th></tr></thead><tbody>
+    {% for r in rows[:50] %}<tr><td>{{ r.student_code }}</td><td>{{ r.first_name }}</td><td>{{ r.last_name }}</td><td class="small">{{ r.program }}</td><td class="small">{{ r.unit }}</td><td>{{ r.year_level or '' }}</td><td class="small">{{ r.status }}</td></tr>{% endfor %}
+    </tbody></table></div></div></div>
+</div>
+</form>
+{% endblock %}
