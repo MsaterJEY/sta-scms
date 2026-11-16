@@ -7,7 +7,7 @@
   <li class="breadcrumb-item active">{{ ev.title }}</li></ol></nav>
 
 <div class="card mb-3 overflow-hidden">
-  {% if ev.cover_path %}<img class="team-cover" src="{{ url_for('team.cover', eid=ev.id) }}" alt="">{% endif %}
+  {% if ev.cover_path %}<img class="team-cover" src="{{ team_cover_url(ev) }}" alt="">{% endif %}
   <div class="card-body">
     <div class="d-flex flex-wrap justify-content-between gap-2">
       <h1 class="h4 mb-1">{{ ev.title }}</h1>

@@ -8,6 +8,8 @@
 - เชื่อมกับโมดูลกิจกรรมได้ (team_events.activity_id): ผู้ที่ผ่านการคัดเลือกจะเป็นทีมงานที่ยืนยันแล้วของกิจกรรมนั้น
   (activity_staff รหัส team_<ใบสมัคร>) จึงเช็กชื่อด้วย QR และได้ชั่วโมงกิจกรรม
 """
+import hashlib
+
 from flask import Blueprint, Response, abort, flash, redirect, render_template, request, url_for
 
 from ..db import repo
@@ -31,7 +33,13 @@ GENDER_LABELS = {"M": "ชาย", "F": "หญิง"}
 @bp.app_context_processor
 def _labels():
     return {"TEAM_EVENT_STATUS": EVENT_STATUS, "TEAM_APP_STATUS": APP_STATUS, "TEAM_TYPES": TYPE_LABELS,
-            "TEAM_MEMBERS": MEMBER_LABELS, "TEAM_GENDERS": GENDER_LABELS}
+            "TEAM_MEMBERS": MEMBER_LABELS, "TEAM_GENDERS": GENDER_LABELS, "team_cover_url": cover_url}
+
+
+def cover_url(ev):
+    """URL รูปปกพร้อมรุ่น (v) ที่เปลี่ยนเมื่อเปลี่ยนรูป เพราะรูปถูกแคชที่เบราว์เซอร์ 1 วัน"""
+    v = hashlib.md5((ev.get("cover_path") or "").encode()).hexdigest()[:8]
+    return url_for("team.cover", eid=ev["id"], v=v)
 
 
 # ---------- ตัวช่วย ----------

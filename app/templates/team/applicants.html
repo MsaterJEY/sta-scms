@@ -8,7 +8,7 @@
 {% endcall %}
 
 <div class="card mb-3"><div class="card-body d-flex flex-wrap gap-3 align-items-center">
-  <div class="team-thumb team-thumb-sm">{% if ev.cover_path %}<img src="{{ url_for('team.cover', eid=ev.id) }}" alt="">{% else %}<i class="bi bi-calendar-event"></i>{% endif %}</div>
+  <div class="team-thumb team-thumb-sm">{% if ev.cover_path %}<img src="{{ team_cover_url(ev) }}" alt="">{% else %}<i class="bi bi-calendar-event"></i>{% endif %}</div>
   <div class="flex-grow-1">
     <div class="fw-bold">{{ ev.title }} {% set st = TEAM_EVENT_STATUS.get(ev.status, (ev.status, 'secondary')) %}<span class="badge text-bg-{{ st[1] }}">{{ st[0] }}</span></div>
     <div class="small text-secondary"><i class="bi bi-calendar3 me-1"></i>{{ dates }}{% if ev.location %}<i class="bi bi-geo-alt ms-2 me-1"></i>{{ ev.location }}{% endif %}</div>

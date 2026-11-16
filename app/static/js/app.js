@@ -114,6 +114,7 @@
       if (out.size > maxMB * 1024 * 1024) {
         alert(`ไฟล์ ${f.name} ใหญ่เกิน ${maxMB} MB`);
         input.value = '';
+        input.dispatchEvent(new Event('change', { bubbles: true }));
         return;
       }
       dt.items.add(out);

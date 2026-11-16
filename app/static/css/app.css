@@ -123,6 +123,9 @@ html[data-fs="l"] { font-size: 18px; }
 .evx-next:hover { background: #e3f4ea; color: var(--sta-primary-dark); border-color: var(--sta-primary); }
 .evx-cover-preview { position: relative; margin-top: .5rem; }
 .evx-cover-preview img { display: block; width: 100%; max-height: 10rem; object-fit: cover; border-radius: .6rem; border: 1px solid #dde3ed; }
+.evx-cover-new { position: absolute; top: .5rem; left: .5rem; background: #fff3cd; color: #664d03; border: 1px solid #ffe69c; border-radius: .5rem; padding: .2rem .6rem; font-size: .85rem; font-weight: 600; }
+.evx-cover-off { opacity: .35; filter: grayscale(1); }
+.evx-cover-remove[hidden] { display: none; }
 .evx-cover-remove { position: absolute; top: .5rem; right: .5rem; background: #fff; border: 1px solid #dde3ed; border-radius: .5rem; padding: .2rem .6rem; font-size: .85rem; font-weight: 600; cursor: pointer; }
 .evx-row { border: 1px solid #dde3ed; border-radius: .9rem; background: #fff; margin-bottom: .75rem; overflow: hidden; }
 .evx-row[open] { border-color: var(--sta-primary); }

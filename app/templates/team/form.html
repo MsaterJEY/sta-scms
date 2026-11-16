@@ -5,7 +5,7 @@
 {# สรุปกิจกรรม ใช้ทั้งขั้นตรวจสอบ (สร้างใหม่) และแผงด้านขวา (แก้ไข) #}
 {% macro summary(show_status) %}
 <div class="evx-sum-event">
-  <div class="evx-sum-thumb">{% if ev.cover_path %}<img src="{{ url_for('team.cover', eid=ev.id) }}" alt="">{% else %}<i class="bi bi-calendar-event"></i>{% endif %}</div>
+  <div class="evx-sum-thumb">{% if ev.cover_path %}<img src="{{ team_cover_url(ev) }}" alt="">{% else %}<i class="bi bi-calendar-event"></i>{% endif %}</div>
   <div class="evx-grow">
     <div class="evx-sum-name">{{ ev.title }}</div>
     <div class="evx-sum-meta"><i class="bi bi-calendar3"></i>{{ dates }}</div>
@@ -168,10 +168,13 @@
         <div class="mb-3"><label class="form-label" for="evLoc">สถานที่</label><input class="form-control" id="evLoc" name="location" value="{{ ev.location or '' }}" placeholder="สถานที่"></div>
         <div class="mb-3"><label class="form-label" for="evCover">รูปปกกิจกรรม</label><input class="form-control" id="evCover" type="file" name="cover" accept="image/*">
           <div class="form-text">รองรับไฟล์ JPG/PNG/WEBP ขนาดไม่เกิน {{ config.MAX_FILE_MB }} MB — ถ้าไม่อัปโหลด ระบบจะแสดงไอคอนแทน</div>
-          {% if ev.cover_path and ev.id %}
-          <div class="evx-cover-preview"><img src="{{ url_for('team.cover', eid=ev.id) }}" alt="รูปปกปัจจุบัน">
-            <label class="evx-cover-remove"><input type="checkbox" name="remove_cover"> ลบรูป</label></div>
-          {% endif %}</div>
+          {% set has_cover = ev.cover_path and ev.id %}
+          <div class="evx-cover-preview" id="evCoverBox" {% if not has_cover %}hidden{% endif %}>
+            <img id="evCoverImg" {% if has_cover %}src="{{ team_cover_url(ev) }}" data-saved="{{ team_cover_url(ev) }}"{% endif %} alt="ตัวอย่างรูปปก">
+            <span class="evx-cover-new" id="evCoverNew" hidden><i class="bi bi-eye"></i> ตัวอย่างรูปใหม่ — ยังไม่บันทึก</span>
+            {% if has_cover %}<label class="evx-cover-remove" id="evCoverRemove"><input type="checkbox" name="remove_cover"> ลบรูป</label>{% endif %}
+            <button type="button" class="evx-cover-remove" id="evCoverCancel" hidden><i class="bi bi-x-lg"></i> ยกเลิกรูปใหม่</button>
+          </div></div>
         <div class="mb-3"><label class="form-label" for="evAct">เชื่อมกับกิจกรรมในโมดูลกิจกรรม <span class="evx-optional">(ไม่บังคับ)</span></label>
           <select class="form-select" id="evAct" name="activity_id"><option value="">ไม่เชื่อม</option>
             {% for a in activities %}<option value="{{ a.id }}" {% if ev.activity_id == a.id %}selected{% endif %}>{{ a.title }} ({{ a.start_at|thaiday }})</option>{% endfor %}</select>
@@ -243,6 +246,32 @@
   var current = {{ step }};
   var infoForm = document.getElementById('evInfoForm');
   var TYPE = {{ TEAM_TYPES|tojson }};
+
+  // ---------- รูปปก: แสดงตัวอย่างทันทีที่เลือกไฟล์ (ยังไม่บันทึกจนกว่าจะกดบันทึก) ----------
+  (function () {
+    var input = document.getElementById('evCover'), box = document.getElementById('evCoverBox');
+    var img = document.getElementById('evCoverImg'), tag = document.getElementById('evCoverNew');
+    var remove = document.getElementById('evCoverRemove'), cancel = document.getElementById('evCoverCancel');
+    var saved = img.dataset.saved || '', blob = null;
+    function render() {
+      var file = input.files && input.files[0];
+      if (blob) { URL.revokeObjectURL(blob); blob = null; }
+      if (file) {
+        blob = URL.createObjectURL(file);
+        img.src = blob;
+        if (remove) remove.querySelector('input').checked = false;
+      } else if (saved) {
+        img.src = saved;
+      }
+      box.hidden = !file && !saved;
+      tag.hidden = cancel.hidden = !file;
+      if (remove) remove.hidden = !!file;
+      img.classList.toggle('evx-cover-off', !file && !!remove && remove.querySelector('input').checked);
+    }
+    input.addEventListener('change', render);
+    if (remove) remove.querySelector('input').addEventListener('change', render);
+    cancel.addEventListener('click', function () { input.value = ''; render(); });
+  })();
 
   // ---------- ขั้นตอน ----------
   function show(n) {

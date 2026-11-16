@@ -13,7 +13,7 @@
   <div class="col-md-6 col-lg-4">
     <a class="card team-card h-100 text-decoration-none text-body" href="{{ url_for('team.detail', eid=ev.id) }}">
       <div class="team-thumb">
-        {% if ev.cover_path %}<img src="{{ url_for('team.cover', eid=ev.id) }}" alt="" loading="lazy">{% else %}<i class="bi bi-calendar-event"></i>{% endif %}
+        {% if ev.cover_path %}<img src="{{ team_cover_url(ev) }}" alt="" loading="lazy">{% else %}<i class="bi bi-calendar-event"></i>{% endif %}
         <span class="badge text-bg-light team-badge-l"><i class="bi bi-circle-fill text-success small"></i> เปิดรับสมัคร</span>
         {% if ev.is_pinned %}<span class="badge text-bg-warning team-badge-r"><i class="bi bi-pin-angle-fill"></i> ปักหมุด</span>
         {% elif ev.is_latest %}<span class="badge text-bg-info team-badge-r">ล่าสุด</span>{% endif %}

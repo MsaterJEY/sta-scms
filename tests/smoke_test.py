@@ -461,6 +461,18 @@ with app.app_context():
     check(repo().get("team_events", wid)["status"] == "OPEN", "wizard finish opens event")
     ph.post(f"/team/manage/{wid}/status", data={"action": "delete"})
     check("งานทดสอบทีม" in guest.get("/team/").get_data(as_text=True), "public sees open team event")
+    def cov(fill):
+        return (io.BytesIO(jpg[:4] + fill * 200), "c.jpg")
+    base = {"title": "งานทดสอบทีม", "start_date": "2026-12-01"}
+    ph.post(f"/team/manage/{tid}/edit", data=dict(base, cover=cov(b"1")), content_type="multipart/form-data")
+    page1 = ph.get(f"/team/manage/{tid}/edit").get_data(as_text=True)
+    url1 = page1.split('data-saved="')[1].split('"')[0].replace("&amp;", "&")
+    img1 = ph.get(url1).data
+    ph.post(f"/team/manage/{tid}/edit", data=dict(base, cover=cov(b"2")), content_type="multipart/form-data")
+    url2 = ph.get(f"/team/manage/{tid}/edit").get_data(as_text=True).split('data-saved="')[1].split('"')[0].replace("&amp;", "&")
+    check(url1 != url2 and ph.get(url2).data != img1, "replacing cover without ticking remove changes image and its URL")
+    ph.post(f"/team/manage/{tid}/edit", data=dict(base, remove_cover="on"))
+    check(not repo().get("team_events", tid).get("cover_path"), "remove cover")
     check("กรุณาเข้าสู่ระบบก่อนสมัคร" in get_ok(guest, f"/team/{tid}").get_data(as_text=True), "guest must log in to apply")
     check(guest.post(f"/team/position/{tp['id']}/apply").status_code == 302 and not repo().where("team_applications", event_id=tid),
           "guest cannot apply")
