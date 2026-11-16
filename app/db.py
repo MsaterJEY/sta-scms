@@ -57,6 +57,14 @@ class LocalRepo:
             self._write(db)
         return str(doc_id)
 
+    def set_many(self, items):
+        """เขียนหลายเอกสารในครั้งเดียว: items = [(collection, doc_id, data)]"""
+        with self.lock:
+            db = self._read()
+            for col, doc_id, data in items:
+                db.setdefault(col, {})[str(doc_id)] = {k: v for k, v in data.items() if k != "id"}
+            self._write(db)
+
     def update(self, col, doc_id, data):
         data = {k: v for k, v in data.items() if k != "id"}
         with self.lock:
@@ -120,6 +128,15 @@ class FirestoreRepo:
         data = {k: v for k, v in data.items() if k != "id"}
         self.client.collection(col).document(str(doc_id)).set(data, merge=merge)
         return str(doc_id)
+
+    def set_many(self, items):
+        """เขียนหลายเอกสารด้วย batch (1 round trip ต่อ 400 เอกสาร): items = [(collection, doc_id, data)]"""
+        items = list(items)
+        for i in range(0, len(items), 400):
+            batch = self.client.batch()
+            for col, doc_id, data in items[i:i + 400]:
+                batch.set(self.client.collection(col).document(str(doc_id)), {k: v for k, v in data.items() if k != "id"})
+            batch.commit()
 
     def update(self, col, doc_id, data):
         data = {k: v for k, v in data.items() if k != "id"}

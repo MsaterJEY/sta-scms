@@ -33,7 +33,7 @@
     <td class="small">{{ div_names.get(p.get('division_id'), '-') }}</td>
     <td>{{ p.get('name') or '-' }}</td>
     <td class="small text-secondary">{{ a.submitted_at|thaidate }}</td>
-    <td>{{ status_badge(a.status) }}</td>
+    <td>{{ status_badge(a.status) }}{% if a.activity_id %}<div><a class="small" href="{{ url_for('activities.detail', aid=a.activity_id) }}">เช็กชื่อ/ชั่วโมงกิจกรรม</a></div>{% endif %}</td>
   </tr>
   {% endfor %}
   </tbody></table></div></div>

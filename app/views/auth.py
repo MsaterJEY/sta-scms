@@ -188,7 +188,7 @@ def setup():
         abort(404)
     has_admin = any("SYS_ADMIN" in (u.get("system_roles") or []) for u in repo().all("users"))
     if request.method == "POST":
-        run_seed(int(request.form.get("year") or 2569))
+        # สร้างผู้ดูแลระบบก่อน seed: ถ้า seed ช้าจนหมดเวลา บัญชียังอยู่ และรัน seed ซ้ำได้
         msg = "seed ข้อมูลตั้งต้นแล้ว"
         if not has_admin and request.form.get("email"):
             email = request.form["email"].strip().lower()
@@ -203,6 +203,7 @@ def setup():
             })
             audit("setup.create_admin", "user", uid, actor_id=uid)
             msg += " และสร้างผู้ดูแลระบบแล้ว"
+        run_seed(int(request.form.get("year") or 2569))
         flash(msg, "success")
         return redirect(url_for("auth.login"))
     return render_template("auth/setup.html", token=token, has_admin=has_admin)

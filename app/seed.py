@@ -88,40 +88,42 @@ EQP_CATEGORIES = [("AV", "เครื่องเสียง/ภาพ"), ("TE
 
 
 def run_seed(year=2569):
+    """อ่านรายการที่มีอยู่ครั้งเดียวต่อคอลเลกชัน แล้วเขียนทั้งหมดใน batch เดียว (กัน timeout บน serverless)"""
     r = repo()
+    have = {}
+    items = []
+
+    def put(col, doc_id, data, overwrite=False):
+        if col not in have:
+            have[col] = {d["id"] for d in r.all(col)}
+        if overwrite or str(doc_id) not in have[col]:
+            items.append((col, str(doc_id), data))
+
     for code, name, former in PROGRAMS:
-        if not r.get("programs", code):
-            r.set("programs", code, {"code": code, "name_th": name, "former_names": former, "faculty_code": "SCI",
-                                     "is_science_faculty": True, "admitting_until": None})
+        put("programs", code, {"code": code, "name_th": name, "former_names": former, "faculty_code": "SCI",
+                               "is_science_faculty": True, "admitting_until": None})
     for code, name, dur, offset, sci in LEVELS:
-        if not r.get("student_level_codes", code):
-            r.set("student_level_codes", code, {"code": code, "name": name, "duration_years": dur,
-                                                "start_year_offset": offset, "is_sci_eligible": sci})
+        put("student_level_codes", code, {"code": code, "name": name, "duration_years": dur,
+                                          "start_year_offset": offset, "is_sci_eligible": sci})
     for code, name in DIVISIONS:
-        if not r.get("divisions", code):
-            r.set("divisions", code, {"code": code, "name": name})
+        put("divisions", code, {"code": code, "name": name})
     for code, name, level, div, roles, single, locked in POSITIONS:
-        if not r.get("positions", code):
-            r.set("positions", code, {"code": code, "name": name, "level": level, "division_id": div,
-                                      "roles": roles, "single_holder": single, "locked_required": locked})
+        put("positions", code, {"code": code, "name": name, "level": level, "division_id": div,
+                                "roles": roles, "single_holder": single, "locked_required": locked})
     for code, name, mode, roles in FLOWS:
-        r.set("approval_flows", code, {"code": code, "name": name, "mode": mode, "approver_roles": roles})
+        put("approval_flows", code, {"code": code, "name": name, "mode": mode, "approver_roles": roles}, overwrite=True)
     for code, name, sla, sens in TICKET_CATEGORIES:
-        if not r.get("ticket_categories", code):
-            r.set("ticket_categories", code, {"name": name, "sla_days": sla, "is_sensitive": sens, "is_active": True})
+        put("ticket_categories", code, {"name": name, "sla_days": sla, "is_sensitive": sens, "is_active": True})
     for code, name in ANN_CATEGORIES:
-        r.set("announcement_categories", code, {"code": code, "name": name})
+        put("announcement_categories", code, {"code": code, "name": name}, overwrite=True)
     for code, name in FAQ_CATEGORIES:
-        if not r.get("faq_categories", code):
-            r.set("faq_categories", code, {"name": name})
+        put("faq_categories", code, {"name": name})
     for code, name in EQP_CATEGORIES:
-        if not r.get("equipment_categories", code):
-            r.set("equipment_categories", code, {"name": name, "is_active": True})
-    if not r.get("academic_years", str(year)):
-        r.set("academic_years", str(year), {"name": str(year), "start_date": f"{year - 543}-06-01",
-                                            "end_date": f"{year - 542}-05-31", "is_current": True})
-    if not r.get("system_settings", "main"):
-        s = dict(DEFAULT_SETTINGS)
-        s["current_academic_year"] = year
-        r.set("system_settings", "main", s)
-    r.set("system_settings", "seed_info", {"seeded_at": now_iso()})
+        put("equipment_categories", code, {"name": name, "is_active": True})
+    put("academic_years", str(year), {"name": str(year), "start_date": f"{year - 543}-06-01",
+                                      "end_date": f"{year - 542}-05-31", "is_current": True})
+    s = dict(DEFAULT_SETTINGS)
+    s["current_academic_year"] = year
+    put("system_settings", "main", s)
+    put("system_settings", "seed_info", {"seeded_at": now_iso()}, overwrite=True)
+    r.set_many(items)

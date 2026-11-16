@@ -131,7 +131,9 @@ def detail(aid):
            "my_staff": my_staff, "division": repo().get("divisions", act.get("division_id")) or {},
            "owner": repo().get("users", act.get("owner_id")), "GROUP_LABELS": GROUP_LABELS,
            "elig": {p["id"]: eligible_for(p, u) for p in positions}, "open": {p["id"]: position_open(p) for p in positions},
-           "conflicts": conflicts_for(u["id"], act)}
+           "conflicts": conflicts_for(u["id"], act),
+           "team_events": [e for e in repo().where("team_events", activity_id=aid)
+                           if manage or e.get("status") != "WAITING"]}
     if manage or screen or can("act.approve") or can("report.view"):
         apps = repo().where("activity_applications", activity_id=aid)
         users = {a["user_id"]: repo().get("users", a["user_id"]) or {} for a in apps}
@@ -583,6 +585,10 @@ def ds_staff(args):
                          u.get("first_name"), u.get("last_name"),
                          {"CONFIRMED": "ยืนยัน", "DECLINED": "สละสิทธิ์"}.get(s.get("confirm_status"), "รอยืนยัน"),
                          u.get("phone") if can_manage(act) else ""])
+    for s in repo().where("activity_staff", activity_id=act["id"], source="TEAM"):  # จากโมดูลรับสมัครทีมงาน
+        u = repo().get("users", s["user_id"]) or {}
+        rows.append([s.get("position_name"), u.get("student_code"), u.get("first_name"), u.get("last_name"), "ยืนยัน",
+                     u.get("phone") if can_manage(act) else ""])
     rows.sort(key=lambda r: (r[0] or "", r[2] or ""))
     return "activity-staff", ["ตำแหน่ง", "รหัสนักศึกษา", "ชื่อ", "นามสกุล", "การยืนยัน", "เบอร์โทร"], rows
 

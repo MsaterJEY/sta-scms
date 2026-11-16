@@ -76,6 +76,10 @@ git push -u origin main
 | `CRON_SECRET` | Vercel Cron ส่ง `Authorization: Bearer <CRON_SECRET>` ให้อัตโนมัติ |
 | `SITE_URL` | `https://<your-app>.vercel.app` |
 | `SMTP_*` | (ไม่บังคับ) ส่งอีเมลแจ้งเตือน |
+| `CONTACT_EMAIL`, `CONTACT_PHONE` | (ไม่บังคับ) อีเมล/เบอร์โทรบนแถบบนสุด — ไม่ใส่ = ไม่แสดง |
+| `SOCIAL_FACEBOOK`, `SOCIAL_LINE`, `SOCIAL_INSTAGRAM` | (ไม่บังคับ) ลิงก์เต็มของช่องทางติดตามใน footer — ไม่ใส่ = ไม่แสดงไอคอน |
+
+ฟังก์ชันรันที่ region สิงคโปร์ (`sin1` ใน `vercel.json`) ให้อยู่ใกล้ Firestore `asia-southeast1`
 
 3. Deploy แล้วเปิด `https://<your-app>.vercel.app/setup?token=<SETUP_TOKEN>` เพื่อ seed ข้อมูลตั้งต้นและสร้างผู้ดูแลระบบคนแรก
 4. ผู้ดูแลระบบลงผู้ถือตำแหน่งบอร์ดที่ **ผู้ดูแลระบบ > ผู้ถือตำแหน่งตามวาระ** (ตำแหน่ง locked ต้องมีผู้ถือครบก่อนเปิดวาระ)

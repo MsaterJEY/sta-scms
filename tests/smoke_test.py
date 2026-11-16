@@ -477,6 +477,20 @@ with app.app_context():
     check(len(repo().where("team_applications", event_id=tid)) == 1, "duplicate and over-quota applications rejected")
     ph.post(f"/team/application/{tapps[0]['id']}/status", data={"action": "APPROVED"})
     check(repo().get("team_applications", tapps[0]["id"])["status"] == "APPROVED", "approve applicant")
+    lact = repo().where("activities", title="ค่ายวิชาการ")[0]["id"]
+    tsid = f"team_{tapps[0]['id']}"
+    check(not repo().get("activity_staff", tsid), "unlinked team event grants no activity staff")
+    ph.post(f"/team/manage/{tid}/edit", data={"title": "งานทดสอบทีม", "start_date": "2026-12-01", "activity_id": lact})
+    ts = repo().get("activity_staff", tsid) or {}
+    check(ts.get("activity_id") == lact and ts.get("confirm_status") == "CONFIRMED", "linking activity makes approved applicant staff")
+    check("ผ่านหน้ารับสมัครทีมงาน" in get_ok(acv, f"/activities/{lact}").get_data(as_text=True), "activity page shows linked team event")
+    r = acv.get(f"/export/activity_staff?fmt=tsv&activity_id={lact}")
+    check(r.status_code == 200 and "พิธีกร" in r.get_data(as_text=True), "staff export includes team-sourced staff")
+    ph.post(f"/team/application/{tapps[0]['id']}/status", data={"action": "REJECTED"})
+    check(not repo().get("activity_staff", tsid), "rejecting removes activity staff")
+    ph.post(f"/team/application/{tapps[0]['id']}/status", data={"action": "APPROVED"})
+    check(repo().get("activity_staff", tsid), "re-approving restores activity staff")
+    check(f"/activities/{lact}" in ph.get("/team/my").get_data(as_text=True), "my applications link to activity")
     ph.post(f"/team/manage/{tid}/applicants/add", data={"full_name": "คนนอก ทดสอบ", "position_id": tp["id"]})
     check(len(repo().where("team_applications", event_id=tid)) == 2, "admin adds outsider past quota")
     for u in ["/team/manage", "/team/manage/new", f"/team/manage/{tid}/edit", f"/team/manage/{tid}/edit?step=2", f"/team/manage/{tid}/applicants?status=active", f"/team/manage/{tid}/print",
@@ -489,6 +503,7 @@ with app.app_context():
     check(acv.post(f"/team/manage/{tid}/status", data={"action": "delete"}).status_code == 403, "delete needs team.delete")
     ph.post(f"/team/manage/{tid}/status", data={"action": "delete"})
     check(not repo().get("team_events", tid) and not repo().where("team_applications", event_id=tid), "delete event with its data")
+    check(not repo().get("activity_staff", tsid), "deleting event removes linked staff")
 
     print("== admin menu access")
     asec_c = client_for("406765004")

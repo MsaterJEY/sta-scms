@@ -5,6 +5,8 @@
 - ผู้สมัครใช้บัญชีของเว็บ ข้อมูลกอง/ประเภท (กรรมการ/อนุกรรมการ) อ่านจากตำแหน่งที่ถือในวาระปัจจุบัน แทนชีตสมาชิก
 - บัญชีแอดมิน/แอดมินขั้นสูง แทนด้วยสิทธิ์ team.manage / team.delete
 - เพศอ่านจากข้อมูลบัญชี (users.gender) แทนการเดาจากคำนำหน้าชื่อ
+- เชื่อมกับโมดูลกิจกรรมได้ (team_events.activity_id): ผู้ที่ผ่านการคัดเลือกจะเป็นทีมงานที่ยืนยันแล้วของกิจกรรมนั้น
+  (activity_staff รหัส team_<ใบสมัคร>) จึงเช็กชื่อด้วย QR และได้ชั่วโมงกิจกรรม
 """
 from flask import Blueprint, Response, abort, flash, redirect, render_template, request, url_for
 
@@ -153,6 +155,29 @@ def positions_of(eid, apps=None, div_names=None):
     return rows
 
 
+# ---------- เชื่อมกับโมดูลกิจกรรม ----------
+def linkable_activities():
+    return sorted(repo().where("activities", academic_year=current_year()), key=lambda a: a.get("start_at") or "", reverse=True)
+
+
+def sync_staff(ev, a, pos=None):
+    """ให้รายชื่อทีมงานของกิจกรรมที่เชื่อมไว้ตรงกับผลใบสมัครนี้ (เฉพาะผู้สมัครที่มีบัญชี)"""
+    sid = f"team_{a['id']}"
+    act_id = ev.get("activity_id")
+    if act_id and a.get("user_id") and a.get("status") == "APPROVED":
+        others = repo().where("activity_staff", activity_id=act_id, user_id=a["user_id"])
+        if not any(s["id"] != sid and s.get("confirm_status") == "CONFIRMED" for s in others):
+            pos = pos or repo().get("team_positions", a.get("position_id")) or {}
+            repo().set("activity_staff", sid, {
+                "batch_id": None, "activity_id": act_id, "application_id": None, "team_application_id": a["id"],
+                "user_id": a["user_id"], "activity_position_id": None, "position_name": pos.get("name"),
+                "result": "APPROVED", "confirm_status": "CONFIRMED", "work_status": "WORKING", "source": "TEAM",
+            })
+            return
+    if repo().get("activity_staff", sid):
+        repo().delete("activity_staff", sid)
+
+
 # ---------- หน้าสาธารณะ: กิจกรรมที่เปิดรับสมัคร ----------
 def open_events():
     return sort_events(repo().where("team_events", status="OPEN"))
@@ -269,6 +294,8 @@ def my():
     events = {a["event_id"]: repo().get("team_events", a["event_id"]) or {} for a in apps}
     positions = {a["position_id"]: repo().get("team_positions", a["position_id"]) or {} for a in apps}
     div_names = {d["id"]: d.get("name") for d in repo().all("divisions")}
+    for a in apps:
+        a["activity_id"] = events[a["event_id"]].get("activity_id") if a.get("status") == "APPROVED" else None
     return render_template("team/my.html", apps=apps, events=events, positions=positions, div_names=div_names,
                            info=member_info(u))
 
@@ -314,6 +341,7 @@ def form(eid=None):
     def page(event, step):
         positions = positions_of(eid) if ev else []
         return render_template("team/form.html", ev=event, positions=positions, divisions=divisions(), is_new=not ev,
+                               activities=linkable_activities(),
                                wizard=wizard, step=step, dates=date_range(event))
 
     if request.method == "POST":
@@ -321,8 +349,11 @@ def form(eid=None):
         data = {"title": f.get("title", "").strip(), "start_date": f.get("start_date") or "",
                 "end_date": f.get("end_date") or "", "location": f.get("location", "").strip(),
                 "description": f.get("description", "").strip(), "note": f.get("note", "").strip()}
+        data["activity_id"] = f.get("activity_id") or None
         error = None
-        if not data["title"] or not data["start_date"]:
+        if data["activity_id"] and not repo().get("activities", data["activity_id"]):
+            error = "ไม่พบกิจกรรมที่เลือกเชื่อม"
+        elif not data["title"] or not data["start_date"]:
             error = "กรุณากรอกชื่อกิจกรรมและวันที่เริ่มงาน"
         elif data["end_date"] and data["end_date"] < data["start_date"]:
             error = "วันที่สิ้นสุดงานต้องไม่ก่อนวันที่เริ่มงาน"
@@ -343,6 +374,9 @@ def form(eid=None):
                 delete_file(ev["cover_path"])
             repo().update("team_events", eid, data)
             audit("team.event_update", "team_event", eid, new=data)
+            if data["activity_id"] != ev.get("activity_id"):
+                for a in repo().where("team_applications", event_id=eid):
+                    sync_staff(data, a)
             if not wizard:
                 flash("บันทึกข้อมูลกิจกรรมแล้ว", "success")
         else:
@@ -396,6 +430,7 @@ def event_status(eid):
         if not can("team.delete"):
             abort(403)
         for a in repo().where("team_applications", event_id=eid):
+            sync_staff({}, a)
             repo().delete("team_applications", a["id"])
         for p in repo().where("team_positions", event_id=eid):
             repo().delete("team_positions", p["id"])
@@ -575,6 +610,7 @@ def application_status(aid):
     if action == "delete":
         if not can("team.delete"):
             abort(403)
+        sync_staff({}, a)
         repo().delete("team_applications", aid)
         audit("team.applicant_delete", "team_application", aid, old={"full_name": a.get("full_name")})
         flash("ลบประวัติการสมัครแล้ว", "info")
@@ -582,8 +618,12 @@ def application_status(aid):
         repo().update("team_applications", aid, {"status": action, "decided_by": current_user()["id"],
                                                  "decided_at": now_iso()})
         audit("team.applicant_status", "team_application", aid, old=a.get("status"), new=action)
+        sync_staff(ev, dict(a, status=action))
         if a.get("user_id") and action != "PENDING":
-            notify(a["user_id"], f"ผลการสมัครทีมงาน {ev.get('title')}", APP_STATUS[action][0], url_for("team.my"))
+            linked = action == "APPROVED" and ev.get("activity_id")
+            notify(a["user_id"], f"ผลการสมัครทีมงาน {ev.get('title')}",
+                   APP_STATUS[action][0] + (" — เช็กชื่อและดูชั่วโมงได้ที่หน้ากิจกรรม" if linked else ""),
+                   url_for("activities.detail", aid=ev["activity_id"]) if linked else url_for("team.my"))
     else:
         abort(400)
     return redirect(request.referrer or url_for("team.applicants", eid=ev["id"]))

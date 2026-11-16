@@ -8,6 +8,13 @@
 {% if act.description %}<div class="card mb-3"><div class="card-body pre-wrap small">{{ act.description }}</div></div>{% endif %}
 {% if conflicts %}<div class="alert alert-warning small">เวลากิจกรรมนี้ชนกับกิจกรรมที่คุณยืนยันเป็นทีมงานแล้ว: {{ conflicts|map(attribute='title')|join(', ') }}</div>{% endif %}
 
+{% for e in team_events %}
+<div class="alert alert-info small d-flex flex-wrap justify-content-between align-items-center gap-2">
+  <span><i class="bi bi-people me-1"></i>กิจกรรมนี้รับสมัครทีมงาน (กรรมการ/อนุกรรมการ) ผ่านหน้ารับสมัครทีมงาน: <b>{{ e.title }}</b> — ผู้ที่ผ่านการคัดเลือกจะเป็นทีมงานของกิจกรรมนี้โดยอัตโนมัติ</span>
+  <span class="d-flex gap-2"><a class="btn btn-sm btn-outline-secondary" href="{{ url_for('team.detail', eid=e.id) }}">ดูหน้ารับสมัคร</a>
+  {% if can('team.manage') or can('team.delete') %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('team.applicants', eid=e.id) }}">ผู้สมัคร</a>{% endif %}</span>
+</div>
+{% endfor %}
 {% if my_staff and my_staff.result == 'APPROVED' %}
 <div class="alert alert-success d-flex flex-wrap justify-content-between align-items-center gap-2">
   <span>คุณผ่านการคัดเลือกเป็นทีมงาน {{ m.badge(my_staff.confirm_status) if my_staff.confirm_status else '' }}</span>
@@ -79,7 +86,7 @@
   <div class="tab-pane fade p-3" id="staff">
     <div class="d-flex justify-content-end mb-2">{{ m.export_buttons('activity_staff', {'activity_id': act.id}) }}</div>
     <table class="table table-sm"><thead><tr><th>ตำแหน่ง</th><th>รหัสนักศึกษา</th><th>ชื่อ</th><th>ผล</th><th>ยืนยัน</th><th>การปฏิบัติงาน</th></tr></thead><tbody>
-      {% for s in staff if not s.removed %}{% set u = users[s.user_id] %}<tr><td class="small">{{ pos_map.get(s.activity_position_id, {}).get('name') }}</td><td>{{ u.student_code }}</td><td>{{ u|uname }}</td>
+      {% for s in staff if not s.removed %}{% set u = users[s.user_id] %}<tr><td class="small">{{ pos_map.get(s.activity_position_id, {}).get('name') or s.position_name or '-' }}{% if s.source == 'TEAM' %} <span class="badge text-bg-light border">รับสมัครทีมงาน</span>{% endif %}</td><td>{{ u.student_code }}</td><td>{{ u|uname }}</td>
         <td>{{ m.badge({'APPROVED':'PASS','RESERVE':'RESERVE','REJECTED':'FAIL'}[s.result]) }}</td><td>{{ m.badge(s.confirm_status) if s.confirm_status else '-' }}</td><td>{{ m.badge(s.work_status) if s.work_status else '-' }}</td></tr>
       {% else %}<tr><td colspan="6">{{ m.empty() }}</td></tr>{% endfor %}</tbody></table>
   </div>
