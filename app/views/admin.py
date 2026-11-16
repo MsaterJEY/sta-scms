@@ -1,10 +1,11 @@
 """ผู้ดูแลระบบ: บัญชี ปีการศึกษา ผู้ถือตำแหน่ง โครงสร้าง ตารางสาขา การตั้งค่า สิทธิ์ Audit (ORG, PERM)"""
-from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
+from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, url_for
 
 from ..db import repo
 from ..exports import dataset
-from ..rbac import (PERMISSIONS, ROLE_LABELS, can, current_user, current_year, holders_of_role, login_required,
-                    permission_required)
+from ..rbac import (FUNCTIONS, PERMISSIONS, ROLE_LABELS, can, current_user, current_year, holders_of_role, in_year,
+                    login_required, permission_required, roles_for, vacant_fallback_positions)
+from ..seed import OLD_DIVISIONS, OLD_POSITIONS
 from ..services import audit, display_name, notify
 from ..utils import DEFAULT_SETTINGS, form_dt, now_iso, parse_dt, now, settings, sort_thai
 
@@ -96,8 +97,8 @@ def years():
             # ตรวจตำแหน่ง locked ต้องมีผู้ถือครบก่อนเปิดวาระ (ORG-02)
             missing = []
             for p in repo().all("positions"):
-                if p.get("locked_required") and not repo().where("position_holders", position_id=p["id"],
-                                                                 academic_year=int(y), status="ACTIVE"):
+                if in_year(p, int(y)) and p.get("locked_required") and not repo().where(
+                        "position_holders", position_id=p["id"], academic_year=int(y), status="ACTIVE"):
                     missing.append(p["name"])
             if missing and not request.form.get("force"):
                 flash("ยังเปิดวาระไม่ได้ ตำแหน่งต่อไปนี้ยังไม่มีผู้ถือ: " + ", ".join(missing), "danger")
@@ -107,6 +108,12 @@ def years():
             repo().set("system_settings", "main", {"current_academic_year": int(y)}, merge=True)
             audit("year.set_current", "academic_year", y)
             flash(f"ตั้งปีการศึกษา {y} เป็นวาระปัจจุบันแล้ว สิทธิ์ของวาระเดิมสิ้นสุดทันที", "success")
+            for p in vacant_fallback_positions(int(y)):
+                msg = f"ตำแหน่ง{p['name']}ว่าง ใช้ผู้สำรอง: " + ", ".join(
+                    FUNCTIONS.get(x, (x,))[0] for x in p.get("fallback_functions") or [])
+                flash(msg, "warning")
+                notify([u["id"] for u in repo().all("users") if "SYS_ADMIN" in (u.get("system_roles") or [])],
+                       "เปิดวาระ: มีตำแหน่งว่างที่ใช้ผู้สำรอง", msg, url_for("admin.holders", year=y))
         return redirect(url_for("admin.years"))
     items = sorted(repo().all("academic_years"), key=lambda y: y["id"], reverse=True)
     return render_template("admin/years.html", items=items)
@@ -125,7 +132,7 @@ def holders():
             key = "student_code" if code.isdigit() else "email"
             found = repo().where("users", **{key: code if key == "student_code" else code.lower()})
             pos = positions.get(request.form.get("position_id"))
-            if not found or not pos:
+            if not found or not pos or not in_year(pos, year):
                 flash("ไม่พบผู้ใช้หรือตำแหน่ง", "danger")
             elif pos.get("single_holder") and repo().where("position_holders", position_id=pos["id"],
                                                            academic_year=year, status="ACTIVE"):
@@ -155,11 +162,14 @@ def holders():
     level_order = {"BOARD": 0, "STAFF": 1, "COMMITTEE": 2, "SUBCOMMITTEE": 3}
     hs.sort(key=lambda h: (h.get("status") != "ACTIVE", level_order.get(positions.get(h["position_id"], {}).get("level"), 9),
                            h.get("position_code", "")))
-    missing = [p for p in positions.values() if p.get("locked_required") and not any(
+    in_chart = [p for p in positions.values() if in_year(p, year)]
+    missing = [p for p in in_chart if p.get("locked_required") and not any(
         h["position_id"] == p["id"] and h.get("status") == "ACTIVE" for h in hs)]
-    pos_list = sorted(positions.values(), key=lambda p: (level_order.get(p.get("level"), 9), p["code"]))
+    pos_list = sorted(in_chart, key=lambda p: (level_order.get(p.get("level"), 9), p.get("division_id") or "", p["code"]))
+    vacant = [{"name": p["name"], "backup": ", ".join(FUNCTIONS.get(x, (x,))[0] for x in p.get("fallback_functions") or [])}
+              for p in vacant_fallback_positions(year)]
     return render_template("admin/holders.html", holders=hs, users=users, positions=positions, pos_list=pos_list,
-                           year=year, missing=missing, years=sorted(repo().all("academic_years"), key=lambda y: y["id"]))
+                           year=year, missing=missing, vacant=vacant, years=sorted(repo().all("academic_years"), key=lambda y: y["id"]))
 
 
 @dataset("holders")
@@ -178,37 +188,108 @@ def ds_holders(args):
     return f"holders-{year}", ["ปีการศึกษา", "ตำแหน่ง", "กอง", "ระดับ", "รหัสนักศึกษา", "ชื่อ", "นามสกุล"], rows
 
 
-# ---------- กอง/ตำแหน่ง ----------
+# ---------- กอง/ตำแหน่ง (ผังบอร์ดรายปี — SRS v3 หัวข้อ 2) ----------
+def _position_id(code, year):
+    """ผังปีแรกใช้รหัสเป็น id; ผังของปีอื่นที่รหัสซ้ำใช้ รหัส-ปี"""
+    return code if not repo().get("positions", code) else f"{code}-{year}"
+
+
 @bp.route("/positions", methods=["GET", "POST"])
 @permission_required("admin.manage")
 def positions():
+    year = int(request.values.get("year") or current_year())
     if request.method == "POST":
         f = request.form
-        if f.get("action") == "division":
+        action = f.get("action")
+        if action == "division":
             code = f.get("code", "").strip().upper()
             if code:
                 repo().set("divisions", code, {"code": code, "name": f.get("name", "").strip()})
                 audit("division.save", "division", code)
-        elif f.get("action") == "position":
-            code = f.get("code", "").strip().upper()
-            roles = [r for r in f.getlist("roles") if r in ROLE_LABELS and r != "SYS_ADMIN"]
-            existing = repo().get("positions", code)
+                flash("บันทึกกองแล้ว", "success")
+        elif action == "position":
+            pid = f.get("position_id")
+            existing = repo().get("positions", pid) if pid else None
+            code = (existing or {}).get("code") or f.get("code", "").strip().upper()
+            level = f.get("level") if f.get("level") in ("BOARD", "COMMITTEE", "SUBCOMMITTEE", "STAFF") else "BOARD"
+            fn = f.get("function_code") if f.get("function_code") in FUNCTIONS else ""
             if existing and existing.get("locked_required"):
-                # ตำแหน่ง locked แก้บทบาทไม่ได้ (PERM-01)
-                roles = existing.get("roles")
-            if code:
-                repo().set("positions", code, {
-                    "code": code, "name": f.get("name", "").strip(), "level": f.get("level"),
-                    "division_id": f.get("division_id") or None, "roles": roles,
-                    "single_holder": bool(f.get("single_holder")),
+                # ตำแหน่ง locked แก้หน้าที่ (สิทธิ์) ไม่ได้ (PERM-01)
+                fn, level = existing.get("function_code") or existing.get("code"), existing.get("level")
+            fallback = [x for x in f.getlist("fallback_functions") if x in FUNCTIONS and x]
+            if not code or not f.get("name", "").strip():
+                flash("กรุณากรอกรหัสและชื่อตำแหน่ง", "danger")
+            else:
+                all_years = bool(f.get("all_years")) or level != "BOARD"
+                data = {
+                    "code": code, "name": f.get("name", "").strip(), "level": level,
+                    "division_id": f.get("division_id") or None, "function_code": fn, "roles": roles_for(level, fn),
+                    "parent_id": f.get("parent_id") or None, "single_holder": bool(f.get("single_holder")),
                     "locked_required": existing.get("locked_required", False) if existing else False,
-                })
-                audit("position.save", "position", code, new={"roles": roles})
-        flash("บันทึกแล้ว", "success")
-        return redirect(url_for("admin.positions"))
+                    "academic_year": None if all_years else year, "fallback_functions": fallback,
+                    "has_fallback": bool(fallback),
+                }
+                pid = existing["id"] if existing else _position_id(code, year)
+                repo().set("positions", pid, data)
+                audit("position.save", "position", pid, new={"function": fn, "fallback": fallback, "year": data["academic_year"]})
+                flash("บันทึกตำแหน่งแล้ว", "success")
+        elif action == "delete_position":
+            pos = repo().get("positions", f.get("position_id"))
+            if not pos:
+                abort(404)
+            if pos.get("locked_required") and pos.get("academic_year") in (None, current_year()):
+                flash("ตำแหน่ง locked ของวาระปัจจุบันลบไม่ได้", "danger")
+            elif repo().where("position_holders", position_id=pos["id"]):
+                flash("ตำแหน่งนี้มีประวัติผู้ถือ ลบไม่ได้ (สิ้นสุดผู้ถือแล้วปล่อยว่างไว้แทน)", "danger")
+            else:
+                repo().delete("positions", pos["id"])
+                audit("position.delete", "position", pos["id"], old={"name": pos.get("name")})
+                flash("ลบตำแหน่งแล้ว", "info")
+        elif action == "copy_chart":
+            # คัดลอกผังบอร์ดของปีที่ดูอยู่ไปปีใหม่ เพื่อปรับผังปีหน้าโดยไม่แก้โค้ด
+            to = int(f.get("to_year") or 0)
+            src = [p for p in repo().all("positions") if p.get("academic_year") == year]
+            if not repo().get("academic_years", str(to)):
+                flash("ยังไม่มีปีการศึกษาปลายทาง เพิ่มที่หน้าปีการศึกษาก่อน", "danger")
+            elif any(p.get("academic_year") == to for p in repo().all("positions")):
+                flash(f"ปี {to} มีผังอยู่แล้ว", "warning")
+            elif not src:
+                flash(f"ปี {year} ไม่มีผังให้คัดลอก", "warning")
+            else:
+                ids = {p["id"]: f"{p['code']}-{to}" for p in src}
+                repo().set_many([("positions", ids[p["id"]], dict(p, academic_year=to, parent_id=ids.get(p.get("parent_id"))))
+                                 for p in src])
+                audit("position.copy_chart", "academic_year", str(to), new={"from": year, "count": len(src)})
+                flash(f"คัดลอกผัง {len(src)} ตำแหน่งจากปี {year} ไปปี {to} แล้ว", "success")
+                year = to
+        elif action == "migrate_v3":
+            from ..seed import migrate_v3
+            done = migrate_v3(current_year())
+            audit("system.migrate_v3", "system_settings", "migrations", new={k: v for k, v in done.items()})
+            flash(f"ย้ายเป็นผังบอร์ด 69 แล้ว: ตำแหน่ง {done['positions']} · ย้ายผู้ถือ {done['holders_moved']} · "
+                  f"แก้ข้อมูลที่อ้างกองเดิม {done['division_refs']} · ล้างตัวตนเรื่องนิรนาม {done['anon_tickets']} · "
+                  f"คำขอยืม {done['equipment_requests']}", "success")
+            if done["holders_ended"]:
+                flash("ผู้ถือตำแหน่งที่ถูกสิ้นสุดเพราะตำแหน่งถูกยกเลิก (แต่งตั้งใหม่ได้ที่หน้าผู้ถือตำแหน่ง): "
+                      + ", ".join(done["holders_ended"]), "warning")
+        return redirect(url_for("admin.positions", year=year))
     divs = sorted(repo().all("divisions"), key=lambda d: d["id"])
-    pos = sorted(repo().all("positions"), key=lambda p: (p.get("level", ""), p["code"]))
-    return render_template("admin/positions.html", divs=divs, pos=pos, role_labels=ROLE_LABELS,
+    level_order = {"BOARD": 0, "STAFF": 1, "COMMITTEE": 2, "SUBCOMMITTEE": 3}
+    every = repo().all("positions")
+    pos = sorted([p for p in every if in_year(p, year)],
+                 key=lambda p: (level_order.get(p.get("level"), 9), p.get("division_id") or "", p["code"]))
+    by_id = {p["id"]: p for p in every}
+    holders = repo().where("position_holders", academic_year=year, status="ACTIVE")
+    for p in pos:
+        p["holder_count"] = sum(1 for h in holders if h["position_id"] == p["id"])
+        p["parent_name"] = (by_id.get(p.get("parent_id")) or {}).get("name")
+    old_codes = set(OLD_POSITIONS) | set(OLD_DIVISIONS)
+    needs_migration = not (repo().get("system_settings", "migrations") or {}).get("v3") and (
+        any(p["id"] in old_codes for p in every) or any(d["id"] in old_codes for d in divs)
+        or any(p.get("level") == "BOARD" and "function_code" not in p for p in every))
+    return render_template("admin/positions.html", divs=divs, pos=pos, role_labels=ROLE_LABELS, functions=FUNCTIONS,
+                           year=year, years=sorted(repo().all("academic_years"), key=lambda y: y["id"]),
+                           needs_migration=needs_migration,
                            edit=repo().get("positions", request.args.get("edit")) if request.args.get("edit") else None)
 
 
@@ -279,7 +360,9 @@ def permissions():
         audit("permission.update", "permission", perm, old=old, new=roles)
         flash("บันทึกสิทธิ์แล้ว", "success")
         return redirect(url_for("admin.permissions"))
-    return render_template("admin/permissions.html", perms=PERMISSIONS, extra=extra, role_labels=ROLE_LABELS)
+    perms = {k: v for k, v in PERMISSIONS.items()
+             if current_app.config.get("ACTIVITIES_ENABLED") or not k.startswith("act.")}
+    return render_template("admin/permissions.html", perms=perms, extra=extra, role_labels=ROLE_LABELS)
 
 
 # ---------- Audit ----------
@@ -311,6 +394,8 @@ def ds_audit(args):
 @bp.route("/delegations", methods=["GET", "POST"])
 @permission_required("delegation.manage")
 def delegations():
+    if not current_app.config.get("ACTIVITIES_ENABLED"):
+        abort(404)
     if request.method == "POST":
         if request.form.get("action") == "grant":
             to = request.form.get("to_user_id")

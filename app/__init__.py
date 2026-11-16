@@ -1,5 +1,5 @@
 """STA-SCMS ระบบบริหารจัดการสโมสรนักศึกษาคณะวิทยาศาสตร์เทคโนโลยีและการเกษตร"""
-from flask import Flask, g, render_template
+from flask import Flask, render_template
 from flask_wtf.csrf import CSRFProtect
 
 from .config import Config
@@ -40,7 +40,8 @@ def create_app(config_object=Config, **overrides):
             unread = len(repo().where("notifications", user_id=u["id"], is_read=False))
         return {
             "me": u,
-            "my_roles": g.get("roles", set()),
+            "my_roles": rbac.roles(),
+            "activities_on": bool(app.config.get("ACTIVITIES_ENABLED")),
             "can": rbac.can,
             "has_role": rbac.has_role,
             "ROLE_LABELS": rbac.ROLE_LABELS,

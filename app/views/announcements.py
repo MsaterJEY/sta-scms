@@ -26,8 +26,13 @@ def results_blocked(a):
     return not approval_state(repo().get("approval_requests", a["approval_request_id"]))["approved"]
 
 
+def draft_only():
+    """ทีมสื่อ (ann.draft): สร้าง/แก้ได้เฉพาะร่าง เผยแพร่ไม่ได้ (SRS v3 หัวข้อ 8)"""
+    return not can("ann.manage")
+
+
 @bp.route("/announcements")
-@permission_required("ann.manage")
+@permission_required("ann.manage", "ann.draft")
 def manage():
     st = request.args.get("status")
     items = sorted(repo().all("announcements"), key=lambda a: a.get("created_at", ""), reverse=True)
@@ -37,18 +42,20 @@ def manage():
     for a in items:
         a["blocked"] = results_blocked(a)
         a["live"] = is_published(a)
-    return render_template("ann/manage.html", items=items, cats=cats, status=st)
+    return render_template("ann/manage.html", items=items, cats=cats, status=st, draft_only=draft_only())
 
 
 @bp.route("/announcements/new", methods=["GET", "POST"])
 @bp.route("/announcements/<aid>/edit", methods=["GET", "POST"])
-@permission_required("ann.manage")
+@permission_required("ann.manage", "ann.draft")
 def form(aid=None):
     a = _ann(aid) if aid else None
+    if a and draft_only() and a.get("status") != "DRAFT":
+        abort(403)
     if request.method == "POST":
         f = request.form
         data = {"title": f.get("title", "").strip(), "body": f.get("body", ""), "category_id": f.get("category_id"),
-                "is_pinned": bool(f.get("is_pinned")), "target_group": f.get("target_group", "ALL")}
+                "is_pinned": bool(f.get("is_pinned")) and not draft_only(), "target_group": f.get("target_group", "ALL")}
         if not data["title"]:
             flash("กรุณาระบุหัวข้อ", "danger")
             return redirect(request.url)
@@ -70,7 +77,8 @@ def form(aid=None):
         flash("บันทึกแล้ว", "success")
         return redirect(url_for("announcements.form", aid=aid))
     cats = repo().all("announcement_categories")
-    return render_template("ann/form.html", a=a, cats=cats, blocked=results_blocked(a) if a else False)
+    return render_template("ann/form.html", a=a, cats=cats, blocked=results_blocked(a) if a else False,
+                           draft_only=draft_only())
 
 
 @bp.route("/announcements/<aid>/status", methods=["POST"])
@@ -124,7 +132,7 @@ def _notify_publish(a):
 @bp.route("/cover/<aid>")
 def cover(aid):
     a = _ann(aid)
-    if not a.get("cover_path") or not (is_published(a) or can("ann.manage")):
+    if not a.get("cover_path") or not (is_published(a) or can("ann.manage") or can("ann.draft")):
         abort(404)
     return Response(load_bytes(a["cover_path"]), mimetype=mimetype_for(a["cover_path"]),
                     headers={"Cache-Control": "public, max-age=86400"})
@@ -172,7 +180,7 @@ def faq_manage():
 @dataset("announcement")
 def ds_announcement(args):
     """คัดลอกข้อมูลดิบของประกาศรายการเดียว"""
-    if not can("ann.manage"):
+    if not (can("ann.manage") or can("ann.draft")):
         abort(403)
     a = _ann(args.get("id"))
     cat = repo().get("announcement_categories", a.get("category_id")) or {}

@@ -5,12 +5,14 @@
 {% set act_url = url_for('tickets.action', tid=t.id) %}
 {% call m.page_header(t.title, t.tracking_code ~ ' · ' ~ cat.name ~ ' · ส่งเมื่อ ' ~ (t.created_at|thaidate)) %}
 {{ m.badge(t.status) }}{% if overdue %}<span class="badge text-bg-danger">เกิน SLA</span>{% endif %}
-{% if t.routing_level != 'NORMAL' %}<span class="badge text-bg-dark">ส่งต่อ {{ t.routing_level }}</span>{% endif %}
+{% if t.routing_level != 'NORMAL' %}<span class="badge text-bg-dark">ส่งต่อนายกสโมสร</span>{% endif %}
+{% if t.out_of_scope %}<span class="badge text-bg-secondary">นอกขอบเขต</span>{% endif %}
 {% endcall %}
+{% if lvl == 'owner' and not t.submitter_id %}<div class="alert alert-info small">คุณกำลังดูเรื่องนิรนามด้วยรหัสติดตามและ PIN ระบบไม่มีข้อมูลว่าคุณเป็นใครและแจ้งเตือนคุณไม่ได้ กรุณากลับมาตรวจสถานะด้วยตนเองที่ <a href="{{ url_for('tickets.anon') }}">หน้าติดตามเรื่องนิรนาม</a></div>{% endif %}
 <div class="row g-3">
 <div class="col-lg-8">
   <div class="card mb-3"><div class="card-body">
-    <div class="small text-secondary mb-2">ผู้ส่ง: {% if submitter %}{{ submitter|uname }} ({{ submitter.student_code }}){% else %}<i>นิรนาม</i>{% endif %}
+    <div class="small text-secondary mb-2">ผู้ส่ง: {% if submitter %}{{ submitter|uname }} ({{ submitter.student_code }}){% else %}<i>นิรนาม{% if not t.submitter_id %} (ระบบไม่มีข้อมูลผู้ส่ง){% endif %}</i>{% endif %}
       {% if targets %} · ร้องเรียนตำแหน่ง: {{ targets|map(attribute='name')|join(', ') }}{% endif %}</div>
     <div class="pre-wrap">{{ t.detail }}</div>
     {% if t.files %}<div class="mt-2 small">{% for f in t.files %}<a href="{{ url_for('tickets.file', tid=t.id, idx=loop.index0) }}" target="_blank"><i class="bi bi-paperclip"></i> {{ f.name }}</a> {% endfor %}</div>{% endif %}
@@ -20,7 +22,7 @@
     {% for msg in msgs %}
     <div class="chat-msg {{ 'chat-internal' if msg.is_internal else ('chat-student' if msg.sender_type == 'STUDENT' else 'chat-handler') }}">
       <div class="small text-secondary">{% if msg.is_internal %}<i class="bi bi-lock"></i> บันทึกภายใน · {% endif %}
-        {% if msg.sender_type == 'STUDENT' %}{{ (senders[msg.sender_id]|uname) if submitter else 'ผู้ส่ง' }}{% else %}{{ senders[msg.sender_id]|uname }} (ผู้รับเรื่อง){% endif %} · {{ msg.sent_at|thaidate }}</div>
+        {% if msg.sender_type == 'STUDENT' %}{{ (senders.get(msg.sender_id)|uname) if submitter and msg.sender_id else 'ผู้ส่ง' }}{% else %}{{ senders.get(msg.sender_id)|uname }} (ผู้รับเรื่อง){% endif %} · {{ msg.sent_at|thaidate }}</div>
       <div class="pre-wrap">{{ msg.body }}</div></div>
     {% endfor %}
   </div>
@@ -52,14 +54,14 @@
       {% endif %}
       {% if t.status != 'CLOSED' and t.routing_level == 'NORMAL' %}
       <form method="post" action="{{ act_url }}">{{ m.csrf() }}<input type="hidden" name="action" value="escalate">
-        <div class="input-group input-group-sm"><select class="form-select" name="to"><option value="PRESIDENT">นายกสโมสร</option><option value="ADVISOR">อาจารย์ที่ปรึกษา</option></select>
-          <button class="btn btn-outline-warning" data-confirm="ส่งต่อเรื่องนี้? ผู้รับเรื่องปกติจะปิดเองไม่ได้">ส่งต่อ</button></div>
-        <input class="form-control form-control-sm mt-1" name="reason" placeholder="เหตุผล"></form>
+        <input class="form-control form-control-sm mb-1" name="reason" placeholder="เหตุผลที่ส่งต่อ">
+        <button class="btn btn-outline-warning w-100" data-confirm="ส่งต่อเรื่องนี้ให้นายกสโมสร? ผู้รับเรื่องปกติจะปิดเองไม่ได้">ส่งต่อนายกสโมสร</button></form>
+      {% endif %}
+      {% if t.status != 'CLOSED' %}
+      <form method="post" action="{{ act_url }}">{{ m.csrf() }}
+        <button name="action" value="close_scope" class="btn btn-outline-secondary w-100" data-confirm="ปิดเรื่องนี้เป็น &quot;นอกขอบเขต: เรื่องของนายก&quot;? ระบบจะแจ้งผู้ร้องให้เสนอที่ประชุมบอร์ดบริหาร">ปิด: นอกขอบเขต (เรื่องของนายก)</button></form>
       {% endif %}
     {% elif lvl == 'view' %}<div class="small text-secondary">คุณดูเรื่องนี้ได้อย่างเดียว (การเปิดดูถูกบันทึก)</div>{% endif %}
-    {% if can_reveal %}
-    <form method="post" action="{{ act_url }}">{{ m.csrf() }}<input class="form-control form-control-sm mb-1" name="reason" placeholder="เหตุผลการเปิดตัวตน (บังคับ)" required>
-      <button name="action" value="reveal" class="btn btn-outline-danger w-100" data-confirm="เปิดตัวตนผู้ร้องเรียนนิรนาม? การกระทำนี้ถูกบันทึก">เปิดตัวตนผู้ร้องเรียน</button></form>{% endif %}
     {% if lvl == 'owner' and reopen_ok %}
     <form method="post" action="{{ act_url }}">{{ m.csrf() }}<button name="action" value="reopen" class="btn btn-outline-warning w-100">ยังไม่ได้รับการแก้ไข (เปิดใหม่)</button></form>{% endif %}
     {% if lvl == 'owner' and t.status == 'CLOSED' and not rating %}

@@ -8,6 +8,7 @@
 {{ m.export_buttons('holders', {'year': year}) }}
 {% endcall %}
 {% if missing %}<div class="alert alert-warning small">ตำแหน่ง locked ที่ยังไม่มีผู้ถือ: {{ missing|map(attribute='name')|join(', ') }}</div>{% endif %}
+{% for v in vacant %}<div class="alert alert-info small">ตำแหน่ง{{ v.name }}ว่าง — ใช้ผู้สำรอง: {{ v.backup }} (เฉพาะสิทธิ์ที่ไม่ locked และ Audit Log ระบุว่าใช้สิทธิ์สำรอง)</div>{% endfor %}
 <div class="card mb-3"><div class="card-header">เพิ่มผู้ถือตำแหน่ง</div><div class="card-body">
   <form method="post" class="row g-2">{{ m.csrf() }}<input type="hidden" name="action" value="add"><input type="hidden" name="year" value="{{ year }}">
     <div class="col-md-4"><input class="form-control" name="identifier" placeholder="รหัสนักศึกษา หรืออีเมล" required></div>

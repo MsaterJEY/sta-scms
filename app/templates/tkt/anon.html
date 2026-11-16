@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}ติดตามเรื่องนิรนาม{% endblock %}
+{% block content %}
+{% call m.page_header('ติดตามเรื่องนิรนาม', 'ใช้รหัสติดตามและ PIN ที่ได้รับตอนส่งเรื่อง ไม่ต้องเข้าสู่ระบบ') %}{% endcall %}
+<div class="card" style="max-width:520px"><div class="card-body">
+  <form method="post" autocomplete="off">{{ m.csrf() }}
+    <label class="form-label" for="tc">รหัสติดตาม</label><input class="form-control mb-2" id="tc" name="code" value="{{ code }}" required>
+    <label class="form-label" for="tp">PIN 6 หลัก</label><input class="form-control mb-3" id="tp" name="pin" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" required>
+    <button class="btn btn-sta">เปิดดูเรื่อง</button>
+  </form>
+  <div class="form-text mt-3">ใส่ PIN ผิดหลายครั้งรหัสติดตามจะถูกล็อกชั่วคราว ถ้า PIN หาย ระบบกู้คืนให้ไม่ได้เพราะไม่ทราบว่าใครเป็นผู้ส่ง</div>
+</div></div>
+{% endblock %}

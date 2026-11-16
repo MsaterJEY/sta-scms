@@ -3,19 +3,21 @@
 ระบบไม่เก็บไฟล์เอกสาร เก็บเฉพาะชื่อ ประเภท กอง กิจกรรม และลิงก์ (เช่น Google Drive)
 การแชร์ไฟล์จริงควบคุมที่ Google Drive ส่วนระบบควบคุมว่าใครเห็นรายการ/ลิงก์
 
-ระดับการเข้าถึง (ข้อสมมติ DOC-02):
-- PRIVATE  : ผู้สร้าง + อาจารย์ที่ปรึกษา
-- DIVISION : ผู้สร้าง + กองเจ้าของเอกสาร + นายก + อาจารย์ที่ปรึกษา
-- BOARD    : ผู้สร้าง + บอร์ดบริหารทุกคน + อาจารย์ที่ปรึกษา
-- MEMBERS  : ผู้ถือตำแหน่งทุกคนในวาระ (บอร์ด กรรมการ อนุกรรมการ) + อาจารย์ที่ปรึกษา
+ระดับการเข้าถึง (ข้อสมมติ DOC-02, SRS v3: อาจารย์ที่ปรึกษาไม่อยู่ในรายชื่อผู้เข้าถึงเอกสาร):
+- PRIVATE  : ผู้สร้าง
+- DIVISION : ผู้สร้าง + กองเจ้าของเอกสาร + นายก
+- BOARD    : ผู้สร้าง + บอร์ดบริหารทุกคน
+- MEMBERS  : ผู้ถือตำแหน่งทุกคนในวาระ (บอร์ด กรรมการ อนุกรรมการ)
+
+ผู้บันทึกเอกสาร: บอร์ดบริหารบันทึกได้เฉพาะของกองที่ตนสังกัด (SRS v3 หัวข้อ 8)
 """
 from urllib.parse import urlparse
 
-from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
+from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, url_for
 
 from ..db import repo
 from ..exports import dataset
-from ..rbac import can, current_user, current_year, login_required, user_divisions, user_holdings, user_roles
+from ..rbac import board_divisions, can, current_user, current_year, login_required, user_holdings, user_roles
 from ..services import audit
 from ..utils import now_iso
 
@@ -33,26 +35,31 @@ def valid_link(url):
     return p.scheme == "https" and bool(p.netloc)
 
 
+def member_holdings(user):
+    """ตำแหน่งของสมาชิกสโมสร (ไม่นับอาจารย์ที่ปรึกษา/ระดับ STAFF)"""
+    return [h for h in user_holdings(user["id"]) if h["position"].get("level") != "STAFF"]
+
+
 def can_see(d, user):
     roles = user_roles(user)
-    if d.get("created_by") == user["id"] or "ADVISOR" in roles:
+    if d.get("created_by") == user["id"]:
         return True
     lvl = d.get("access_level", "DIVISION")
     if lvl == "PRIVATE":
         return False
     if lvl == "MEMBERS":
-        return bool(user_holdings(user["id"]))
+        return bool(member_holdings(user))
     if lvl == "BOARD":
         return "BOARD" in roles
     # DIVISION
     if "PRES" in roles:
         return True
-    divs = {h["position"].get("division_id") for h in user_holdings(user["id"])}
+    divs = {h["position"].get("division_id") for h in member_holdings(user)}
     return d.get("division_id") in divs
 
 
 def can_edit(d, user):
-    return d.get("created_by") == user["id"] or (can("doc.upload") and d.get("division_id") in user_divisions(user))
+    return d.get("created_by") == user["id"] or (can("doc.upload") and d.get("division_id") in board_divisions(user))
 
 
 def visible_docs(args):
@@ -73,9 +80,10 @@ def visible_docs(args):
 @login_required
 def index():
     u = current_user()
-    if not (user_holdings(u["id"]) or can("report.view")):
+    if not (member_holdings(u) or can("report.view")):
         abort(403)
-    my_divs = user_divisions(u)
+    my_divs = board_divisions(u)
+    activities_on = bool(current_app.config.get("ACTIVITIES_ENABLED"))
     if request.method == "POST":
         f = request.form
         action = f.get("action", "add")
@@ -95,7 +103,7 @@ def index():
         elif not valid_link(link):
             flash("ลิงก์ต้องขึ้นต้นด้วย https://", "danger")
         else:
-            act = repo().get("activities", f.get("activity_id")) if f.get("activity_id") else None
+            act = repo().get("activities", f.get("activity_id")) if activities_on and f.get("activity_id") else None
             did = repo().add("documents", {
                 "title": f["title"].strip()[:200], "doc_type": f.get("doc_type", "OTHER"), "url": link,
                 "note": f.get("note", "").strip()[:500], "division_id": f["division_id"],
@@ -110,7 +118,7 @@ def index():
     for d in docs:
         d["editable"] = can_edit(d, u)
     divs = {d["id"]: d for d in repo().all("divisions")}
-    acts = {a["id"]: a for a in repo().all("activities")}
+    acts = {a["id"]: a for a in repo().all("activities")} if activities_on else {}
     users = {d["created_by"]: repo().get("users", d["created_by"]) or {} for d in docs}
     return render_template("docs/index.html", docs=docs, divs=divs, acts=acts, users=users, my_divs=my_divs,
                            DOC_TYPES=DOC_TYPES, ACCESS=ACCESS, args=request.args)

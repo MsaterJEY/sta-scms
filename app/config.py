@@ -35,6 +35,8 @@ class Config:
     SMTP_FROM = os.environ.get("SMTP_FROM", "")
     SITE_URL = os.environ.get("SITE_URL", "")
     # ข้อมูลติดต่อและช่องทางติดตามที่แสดงบนแถบบนสุดและ footer (ค่าเริ่มต้นเป็นตัวอย่าง)
+    # โมดูลกิจกรรม (SRS v3 ตัดออก ใช้ระบบกิจกรรมของมหาวิทยาลัย) — ตั้ง ACTIVITIES_ENABLED=1 เพื่อเปิดกลับ
+    ACTIVITIES_ENABLED = os.environ.get("ACTIVITIES_ENABLED", "") == "1"
     CONTACT_EMAIL = os.environ.get("CONTACT_EMAIL", "")
     CONTACT_PHONE = os.environ.get("CONTACT_PHONE", "")
     SOCIAL_FACEBOOK = os.environ.get("SOCIAL_FACEBOOK", "")

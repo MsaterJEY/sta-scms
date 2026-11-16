@@ -79,6 +79,7 @@ DEFAULT_SETTINGS = {
     "ticket_reopen_days": 7,
     "borrower_doc_retention_days": 30,
     "ticket_stats_min_group": 5,
+    "ticket_anon_daily_limit": 3,
     "max_member_choices": 3,
     "max_concurrent_loans": 3,
     "qr_rotate_seconds": 30,

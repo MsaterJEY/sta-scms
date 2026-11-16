@@ -18,7 +18,7 @@
     {% endfor %}</tbody></table></div></div>
   <div class="card mb-3"><div class="card-body">
     <label class="form-label">วัตถุประสงค์</label><textarea class="form-control mb-2" name="purpose" rows="2" required></textarea>
-    <label class="form-label">ใช้ในกิจกรรม (ไม่บังคับ)</label><select class="form-select mb-2" name="activity_id"><option value="">- ไม่ผูกกิจกรรม -</option>{% for a in acts %}<option value="{{ a.id }}">{{ a.title }}</option>{% endfor %}</select>
+    <label class="form-label">ชื่อกิจกรรม (ไม่บังคับ)</label><input class="form-control mb-2" name="event_name" maxlength="200" placeholder="เช่น งานรับน้อง 2569">
     {% if doc_type %}
     <label class="form-label">แนบ{{ 'รูปบัตรนักศึกษา' if doc_type == 'STUDENT_CARD' else 'รูปบัตรประชาชน (แนะนำเฉพาะด้านหน้า ปิดข้อมูลที่ไม่จำเป็น)' }} <span class="text-danger">*</span></label>
     <input class="form-control mb-1" type="file" name="borrower_doc" accept="image/*,.pdf" required>

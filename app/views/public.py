@@ -60,7 +60,7 @@ def home():
     notices = [a for a in all_anns if a.get("category_id") == "NOTICE"][:6]
     cats = {c["id"]: c for c in repo().all("announcement_categories")}
     rounds = [r for r in repo().where("recruitment_rounds", status="OPEN")]
-    open_positions = [p for p in repo().where("activity_positions", status="OPEN")]
+    open_positions = repo().where("activity_positions", status="OPEN") if current_app.config.get("ACTIVITIES_ENABLED") else []
     return render_template("public/home.html", anns=anns, notices=notices, cats=cats, rounds=rounds,
                            open_positions=open_positions, banners=home_banners(),
                            team_events=open_events())

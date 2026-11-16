@@ -94,7 +94,7 @@
     <div>{{ requester.student_code or '-' }} · {{ requester.account_type }}</div>
     {% if show_contact %}<div>โทร {{ requester.phone or '-' }} · LINE {{ requester.line_id or '-' }}</div>{% endif %}
     <hr><div><strong>วัตถุประสงค์:</strong> {{ r.purpose }}</div>
-    {% if activity %}<div><strong>กิจกรรม:</strong> {{ activity.title }}</div>{% endif %}
+    {% if event_name %}<div><strong>กิจกรรม:</strong> {{ event_name }}</div>{% endif %}
     {% if r.reject_reason %}<div class="text-danger"><strong>เหตุผลที่ปฏิเสธ:</strong> {{ r.reject_reason }}</div>{% endif %}
     {% if r.receiver_name %}<div><strong>ผู้รับของ:</strong> {{ r.receiver_name }} {% if r.id_checked %}(ตรวจบัตรแล้ว){% endif %}</div>{% endif %}
     {% if r.return_confirmed_at %}<div><strong>ยืนยันรับคืน:</strong> {{ r.return_confirmed_at|thaidate }}</div>{% endif %}

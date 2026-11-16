@@ -8,14 +8,25 @@
   <label class="form-label">ประเภท</label><select class="form-select mb-2" name="category_id" required>{% for c in cats %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select>
   <label class="form-label">หัวข้อ</label><input class="form-control mb-2" name="title" maxlength="200" required>
   <label class="form-label">รายละเอียด</label><textarea class="form-control mb-2" name="detail" rows="6" required></textarea>
-  <label class="form-label">ไฟล์แนบ (ไม่บังคับ)</label><input class="form-control mb-1" type="file" name="files" multiple data-max-files="3" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt">
-  <div class="form-text mb-3">ไม่เกิน 3 ไฟล์ ไฟล์ละไม่เกิน {{ config.MAX_FILE_MB|int }} MB (รูปภาพย่อให้อัตโนมัติ)</div>
+  <div id="tkFiles"><label class="form-label">ไฟล์แนบ (ไม่บังคับ)</label><input class="form-control mb-1" type="file" name="files" multiple data-max-files="3" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt">
+  <div class="form-text mb-3">ไม่เกิน 3 ไฟล์ ไฟล์ละไม่เกิน {{ config.MAX_FILE_MB|int }} MB (รูปภาพย่อให้อัตโนมัติ)</div></div>
   <details class="mb-3"><summary class="small">เรื่องนี้ร้องเรียนผู้ถือตำแหน่งในบอร์ดบริหาร?</summary>
     <div class="small text-secondary my-2">ระบบจะซ่อนเรื่องจากผู้ถือตำแหน่งที่เลือก และส่งให้ผู้รับเรื่องที่เหมาะสมโดยอัตโนมัติ</div>
+    <div class="alert alert-secondary small py-2">เรื่องร้องเรียนนายกสโมสรไม่รับผ่านระบบนี้ ให้เสนอที่ประชุมบอร์ดบริหาร</div>
     <div style="columns:2">{% for p in board_positions %}<div class="form-check small"><input class="form-check-input" type="checkbox" name="target_position_ids" value="{{ p.id }}" id="tp{{ p.id }}"><label class="form-check-label" for="tp{{ p.id }}">{{ p.name }}</label></div>{% endfor %}</div>
   </details>
-  <div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="is_anonymous" id="anon"><label class="form-check-label" for="anon">ส่งแบบนิรนาม (ผู้รับเรื่องไม่เห็นชื่อคุณ)</label></div>
+  <div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="is_anonymous" id="anon"><label class="form-check-label" for="anon">ส่งแบบนิรนาม (ระบบไม่เก็บว่าใครเป็นผู้ส่ง)</label></div>
+  <div class="alert alert-warning small" id="anonNote" hidden>ส่งแบบนิรนามแล้วระบบไม่สามารถระบุตัวตนได้ หากต้องการให้ติดต่อกลับ ให้ส่งแบบระบุตัวตน และเก็บรหัสติดตามกับ PIN ไว้ให้ดี — ถ้า PIN หายจะเข้าเรื่องเดิมไม่ได้ ระบบแจ้งเตือนคุณไม่ได้ และเรื่องนิรนามแนบไฟล์ไม่ได้</div>
   <div class="form-check mb-3"><input class="form-check-input" type="checkbox" id="cs" required><label class="form-check-label small" for="cs">ยินยอมให้ใช้ข้อมูลเพื่อตรวจสอบและแก้ไขปัญหา</label></div>
   <button class="btn btn-sta">ส่งคำร้อง</button>
 </form></div></div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  var box = document.getElementById('anon'), note = document.getElementById('anonNote'), files = document.getElementById('tkFiles');
+  function sync() { note.hidden = !box.checked; files.hidden = box.checked; if (box.checked) files.querySelector('input').value = ''; }
+  box.addEventListener('change', sync); sync();
+})();
+</script>
 {% endblock %}

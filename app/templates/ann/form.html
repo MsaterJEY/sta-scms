@@ -19,10 +19,12 @@
   <label class="form-label">เนื้อหา</label><textarea class="form-control mb-2" name="body" rows="12">{{ a.body if a else '' }}</textarea>
   <label class="form-label">ภาพปก</label><input class="form-control mb-2" type="file" name="cover" accept="image/*">
   {% if a and a.cover_path %}<img src="{{ url_for('announcements.cover', aid=a.id) }}" class="img-fluid rounded mb-2" style="max-height:160px" alt="">{% endif %}
-  <div class="form-check mb-3"><input class="form-check-input" type="checkbox" name="is_pinned" id="pin" {% if a and a.is_pinned %}checked{% endif %}><label class="form-check-label" for="pin">ปักหมุด</label></div>
+  {% if not draft_only %}<div class="form-check mb-3"><input class="form-check-input" type="checkbox" name="is_pinned" id="pin" {% if a and a.is_pinned %}checked{% endif %}><label class="form-check-label" for="pin">ปักหมุด</label></div>{% endif %}
   <button class="btn btn-sta">บันทึก</button>
 </form></div></div></div>
-{% if a %}
+{% if a and draft_only %}
+<div class="col-lg-4"><div class="alert alert-info small">คุณร่างประกาศได้อย่างเดียว การเผยแพร่และตั้งเวลาเป็นหน้าที่ของอุปนายก/เลขาฝ่ายประชาสัมพันธ์ และหัวหน้าฝ่ายสื่อ</div></div>
+{% elif a %}
 <div class="col-lg-4"><div class="card"><div class="card-header">เผยแพร่</div><div class="card-body d-grid gap-2">
   <form method="post" action="{{ url_for('announcements.set_status', aid=a.id) }}">{{ m.csrf() }}<button name="action" value="publish" class="btn btn-success w-100" {% if blocked %}disabled{% endif %}>เผยแพร่ทันที</button></form>
   <form method="post" action="{{ url_for('announcements.set_status', aid=a.id) }}">{{ m.csrf() }}<input type="hidden" name="action" value="schedule">

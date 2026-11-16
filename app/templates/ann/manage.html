@@ -7,7 +7,7 @@
   <li class="nav-item"><a class="nav-link {{ 'active' if (status or '') == k }}" href="?status={{ k }}">{{ l }}</a></li>{% endfor %}</ul>
 <div class="card"><div class="table-responsive"><table class="table table-sm mb-0">
   <thead><tr><th>หัวข้อ</th><th>หมวด</th><th>สถานะ</th><th>เผยแพร่</th><th></th></tr></thead><tbody>
-  {% for a in items %}<tr><td>{% if a.is_pinned %}<i class="bi bi-pin-angle-fill text-warning"></i> {% endif %}<a href="{{ url_for('announcements.form', aid=a.id) }}">{{ a.title }}</a>
+  {% for a in items %}<tr><td>{% if a.is_pinned %}<i class="bi bi-pin-angle-fill text-warning"></i> {% endif %}{% if draft_only and a.status != 'DRAFT' %}{{ a.title }}{% else %}<a href="{{ url_for('announcements.form', aid=a.id) }}">{{ a.title }}</a>{% endif %}
       {% if a.source_type %}<span class="badge text-bg-light">ร่างอัตโนมัติ</span>{% endif %}{% if a.blocked %} <span class="badge text-bg-danger">รออนุมัติผล</span>{% endif %}</td>
     <td class="small">{{ cats.get(a.category_id, {}).get('name') }}</td><td>{{ m.badge(a.status) }}{% if a.live %} <i class="bi bi-broadcast text-success" title="แสดงอยู่"></i>{% endif %}</td>
     <td class="small">{{ a.publish_at|thaidate if a.publish_at else '-' }}</td>

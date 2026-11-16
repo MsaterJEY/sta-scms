@@ -36,7 +36,7 @@
 </div>
 
 {% set guest_or_sci = not me or me.account_type == 'SCI' %}
-{% set staff_menu = me and (can('rec.approve') or can('act.approve') or can('eqp.self_approve') or can('eqp.manage') or can('ann.manage') or can('faq.manage') or can('report.view') or can('eqp.report') or can('delegation.manage') or can('doc.upload') or can('team.manage') or can('team.delete') or 'BOARD' in my_roles or 'COMM' in my_roles or 'SUBCOMM' in my_roles or 'ADVISOR' in my_roles) %}
+{% set staff_menu = me and (can('rec.approve') or can('eqp.self_approve') or can('eqp.manage') or can('ann.manage') or can('ann.draft') or can('faq.manage') or can('report.view') or can('eqp.report') or can('delegation.manage') or can('doc.upload') or can('team.manage') or can('team.delete') or 'BOARD' in my_roles or 'COMM' in my_roles or 'SUBCOMM' in my_roles or 'ADVISOR' in my_roles) %}
 <nav class="navbar navbar-expand-lg topbar sticky-top shadow-sm">
   <div class="container-xl">
     <a class="navbar-brand d-flex align-items-center gap-2" href="{{ url_for('public.home') }}">
@@ -71,20 +71,21 @@
             <li><a class="dropdown-item" href="{{ url_for('public.news') }}"><i class="bi bi-megaphone me-2"></i>ข่าวประกาศ</a></li>
             {% if guest_or_sci or can('rec.manage') or can('rec.score') or can('rec.approve') %}
             <li><a class="dropdown-item" href="{{ url_for('recruit.index') }}"><i class="bi bi-person-badge me-2"></i>รับสมัครกรรมการ</a></li>
-            <li><a class="dropdown-item" href="{{ url_for('activities.index') }}"><i class="bi bi-calendar-event me-2"></i>กิจกรรมและทีมงาน</a></li>
+            {% if activities_on %}<li><a class="dropdown-item" href="{{ url_for('activities.index') }}"><i class="bi bi-calendar-event me-2"></i>กิจกรรมและทีมงาน</a></li>{% endif %}
             {% endif %}
             <li><a class="dropdown-item" href="{{ url_for('team.index') }}"><i class="bi bi-people me-2"></i>รับสมัครทีมงานกิจกรรม</a></li>
             {% if staff_menu %}
             <li><h6 class="dropdown-header">งานสโมสร</h6></li>
-            {% if can('rec.approve') or can('act.approve') or can('eqp.self_approve') %}
+            {% if can('rec.approve') or can('eqp.self_approve') %}
             <li><a class="dropdown-item" href="{{ url_for('dashboard.approvals') }}">รายการรออนุมัติ</a></li>{% endif %}
             {% if can('team.manage') or can('team.delete') %}<li><a class="dropdown-item" href="{{ url_for('team.manage') }}">จัดการรับสมัครทีมงาน</a></li>{% endif %}
-            {% if can('ann.manage') %}<li><a class="dropdown-item" href="{{ url_for('announcements.manage') }}">จัดการประกาศ</a></li>{% endif %}
+            {% if can('ann.manage') or can('ann.draft') %}<li><a class="dropdown-item" href="{{ url_for('announcements.manage') }}">{{ 'จัดการประกาศ' if can('ann.manage') else 'ร่างประกาศ' }}</a></li>{% endif %}
             {% if can('faq.manage') %}<li><a class="dropdown-item" href="{{ url_for('announcements.faq_manage') }}">จัดการ FAQ</a></li>{% endif %}
-            <li><a class="dropdown-item" href="{{ url_for('documents.index') }}">เอกสาร</a></li>
-            {% if can('report.view') or can('eqp.report') or can('rec.manage') or can('act.manage') %}
+            {% if 'BOARD' in my_roles or 'COMM' in my_roles or 'SUBCOMM' in my_roles or can('report.view') %}<li><a class="dropdown-item" href="{{ url_for('documents.index') }}">เอกสาร</a></li>{% endif %}
+            {% if can('report.view') or can('eqp.report') or can('rec.manage') %}
             <li><a class="dropdown-item" href="{{ url_for('reports.index') }}">รายงานและสถิติ</a></li>{% endif %}
-            {% if can('delegation.manage') %}
+            {% if can('dashboard.advisor') %}<li><a class="dropdown-item" href="{{ url_for('reports.advisor') }}">Dashboard สรุป</a></li>{% endif %}
+            {% if activities_on and can('delegation.manage') %}
             <li><a class="dropdown-item" href="{{ url_for('admin.delegations') }}">มอบสิทธิ์คัดกรอง</a></li>{% endif %}
             {% endif %}
             {% if me and (can('admin.manage') or can('admin.holders')) %}

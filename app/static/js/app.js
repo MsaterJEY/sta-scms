@@ -139,7 +139,7 @@
     'brand': 'Science Student Club',
     'nav.home': 'Home', 'nav.equipment': 'Equipment', 'nav.org': 'Organization', 'nav.help': 'Help', 'nav.login': 'Sign in',
     'svc.register': 'Register', 'svc.shop': 'Shop', 'svc.borrow': 'Borrow & Return', 'svc.order': 'Order',
-    'svc.faq': 'FAQ', 'svc.recruit': 'Committee Recruitment', 'svc.activity': 'Activities', 'svc.ticket': 'Requests',
+    'svc.faq': 'FAQ', 'svc.recruit': 'Committee Recruitment', 'svc.activity': 'Activities', 'svc.team': 'Join Staff Team', 'svc.ticket': 'Requests',
     'svc.rooms': 'Room Booking',
     'home.news': 'News & Announcements', 'home.all': 'View all', 'home.latest': 'Latest', 'home.notice': 'Announcements',
     'home.services': 'Services', 'home.open': 'Now Open for Applications',

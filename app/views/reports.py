@@ -1,20 +1,27 @@
 """5.0 รายงานและสถิติข้ามโมดูล (RPT-01..06)"""
 from collections import Counter
 
-from flask import Blueprint, abort, render_template, request
+from datetime import timedelta
+
+from flask import Blueprint, abort, current_app, render_template, request
 
 from ..db import repo
 from ..exports import dataset
 from ..rbac import can, current_year, login_required
 from ..services import approval_state
+from ..utils import now, to_iso
 from .equipment import is_overdue
-from .tickets import ticket_stats
+from .tickets import advisor_ticket_summary, ticket_stats
 
 bp = Blueprint("reports", __name__, url_prefix="/reports")
 
 
 def _allowed():
-    return any(can(p) for p in ("report.view", "eqp.report", "rec.manage", "act.manage", "admin.manage"))
+    return any(can(p) for p in ("report.view", "eqp.report", "rec.manage", "admin.manage"))
+
+
+def _activities_on():
+    return bool(current_app.config.get("ACTIVITIES_ENABLED"))
 
 
 @bp.route("/")
@@ -40,7 +47,7 @@ def index():
                                       if x["result"] == "PASS" and not x.get("removed")])
         rec.append({"round": r, "apps": len(apps), "pass": approved_pass})
 
-    acts = repo().where("activities", academic_year=year)
+    acts = repo().where("activities", academic_year=year) if _activities_on() else []
     divs = {d["id"]: d for d in repo().all("divisions")}
     act_rows = []
     for a in acts:
@@ -64,9 +71,33 @@ def index():
                            years=sorted(repo().all("academic_years"), key=lambda y: y["id"], reverse=True))
 
 
+@bp.route("/advisor")
+@login_required
+def advisor():
+    """Dashboard อาจารย์ที่ปรึกษา (SRS v3 หัวข้อ 4.2): ตัวเลขสรุปเท่านั้น ไม่มีชื่อ เนื้อหา หรือข้อมูลรายบุคคล"""
+    if not can("dashboard.advisor"):
+        abort(403)
+    year = current_year()
+    users = [u for u in repo().all("users") if u.get("status") == "ACTIVE"]
+    since = to_iso(now() - timedelta(days=30))
+    reqs = repo().all("equipment_requests")
+    usage = {
+        "users": len(users),
+        "active_users": len([u for u in users if (u.get("last_login_at") or "") >= since]),
+        "new_users": len([u for u in users if (u.get("created_at") or "") >= since]),
+        "applicants": sum(len(repo().where("member_applications", round_id=r["id"]))
+                          for r in repo().where("recruitment_rounds", academic_year=year)),
+        "loans": len(reqs),
+        "loans_active": len([r for r in reqs if r.get("status") in ("APPROVED", "ISSUED", "PARTIAL_RETURNED")]),
+        "loans_overdue": len([r for r in reqs if is_overdue(r)]),
+    }
+    rows, total = advisor_ticket_summary()
+    return render_template("reports/advisor.html", year=year, usage=usage, rows=rows, total=total)
+
+
 @dataset("report_activities")
 def ds_activities(args):
-    if not _allowed():
+    if not _allowed() or not _activities_on():
         abort(403)
     year = int(args.get("year") or current_year())
     divs = {d["id"]: d for d in repo().all("divisions")}
@@ -84,7 +115,7 @@ def ds_activities(args):
 @dataset("report_hours")
 def ds_hours(args):
     """ชั่วโมงกิจกรรมรวมรายบุคคล"""
-    if not _allowed():
+    if not _allowed() or not _activities_on():
         abort(403)
     total = Counter()
     for h in repo().all("activity_hours"):

@@ -10,7 +10,7 @@
 """
 import hashlib
 
-from flask import Blueprint, Response, abort, flash, redirect, render_template, request, url_for
+from flask import Blueprint, Response, abort, current_app, flash, redirect, render_template, request, url_for
 
 from ..db import repo
 from ..exports import dataset
@@ -156,7 +156,7 @@ def positions_of(eid, apps=None, div_names=None):
     for p in rows:
         p["tally"] = tally(p, apps)
         p["full"] = p["tally"]["count"] >= _int(p.get("quota"))
-        p["division_name"] = div_names.get(p.get("division_id"), "-")
+        p["division_name"] = div_names.get(p.get("division_id"), "-") + (f" · ฝ่าย{p['unit_name']}" if p.get("unit_name") else "")
         p["gender_text"] = gender_text(p)
         p["restrict_names"] = [div_names.get(d, d) for d in p.get("restrict_divisions") or []]
     rows.sort(key=lambda p: p["division_name"])
@@ -164,14 +164,20 @@ def positions_of(eid, apps=None, div_names=None):
 
 
 # ---------- เชื่อมกับโมดูลกิจกรรม ----------
+def activities_on():
+    return bool(current_app.config.get("ACTIVITIES_ENABLED"))
+
+
 def linkable_activities():
+    if not activities_on():
+        return []
     return sorted(repo().where("activities", academic_year=current_year()), key=lambda a: a.get("start_at") or "", reverse=True)
 
 
 def sync_staff(ev, a, pos=None):
     """ให้รายชื่อทีมงานของกิจกรรมที่เชื่อมไว้ตรงกับผลใบสมัครนี้ (เฉพาะผู้สมัครที่มีบัญชี)"""
     sid = f"team_{a['id']}"
-    act_id = ev.get("activity_id")
+    act_id = ev.get("activity_id") if activities_on() else None
     if act_id and a.get("user_id") and a.get("status") == "APPROVED":
         others = repo().where("activity_staff", activity_id=act_id, user_id=a["user_id"])
         if not any(s["id"] != sid and s.get("confirm_status") == "CONFIRMED" for s in others):
@@ -303,7 +309,7 @@ def my():
     positions = {a["position_id"]: repo().get("team_positions", a["position_id"]) or {} for a in apps}
     div_names = {d["id"]: d.get("name") for d in repo().all("divisions")}
     for a in apps:
-        a["activity_id"] = events[a["event_id"]].get("activity_id") if a.get("status") == "APPROVED" else None
+        a["activity_id"] = events[a["event_id"]].get("activity_id") if activities_on() and a.get("status") == "APPROVED" else None
     return render_template("team/my.html", apps=apps, events=events, positions=positions, div_names=div_names,
                            info=member_info(u))
 
@@ -357,7 +363,8 @@ def form(eid=None):
         data = {"title": f.get("title", "").strip(), "start_date": f.get("start_date") or "",
                 "end_date": f.get("end_date") or "", "location": f.get("location", "").strip(),
                 "description": f.get("description", "").strip(), "note": f.get("note", "").strip()}
-        data["activity_id"] = f.get("activity_id") or None
+        # ปิดโมดูลกิจกรรมอยู่: คงค่าการเชื่อมเดิมไว้ ไม่ให้ฟอร์มล้างทิ้ง
+        data["activity_id"] = (f.get("activity_id") or None) if activities_on() else (ev or {}).get("activity_id")
         error = None
         if data["activity_id"] and not repo().get("activities", data["activity_id"]):
             error = "ไม่พบกิจกรรมที่เลือกเชื่อม"
@@ -382,7 +389,7 @@ def form(eid=None):
                 delete_file(ev["cover_path"])
             repo().update("team_events", eid, data)
             audit("team.event_update", "team_event", eid, new=data)
-            if data["activity_id"] != ev.get("activity_id"):
+            if activities_on() and data["activity_id"] != ev.get("activity_id"):
                 for a in repo().where("team_applications", event_id=eid):
                     sync_staff(data, a)
             if not wizard:
@@ -628,7 +635,7 @@ def application_status(aid):
         audit("team.applicant_status", "team_application", aid, old=a.get("status"), new=action)
         sync_staff(ev, dict(a, status=action))
         if a.get("user_id") and action != "PENDING":
-            linked = action == "APPROVED" and ev.get("activity_id")
+            linked = activities_on() and action == "APPROVED" and ev.get("activity_id")
             notify(a["user_id"], f"ผลการสมัครทีมงาน {ev.get('title')}",
                    APP_STATUS[action][0] + (" — เช็กชื่อและดูชั่วโมงได้ที่หน้ากิจกรรม" if linked else ""),
                    url_for("activities.detail", aid=ev["activity_id"]) if linked else url_for("team.my"))

@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}Dashboard สรุป{% endblock %}
+{% macro tile(label, value, cls='') %}
+<div class="col-6 col-md-3"><div class="card stat h-100"><div class="card-body"><div class="small text-secondary">{{ label }}</div><div class="num {{ cls }}">{{ value }}</div></div></div></div>
+{% endmacro %}
+{% block content %}
+{% call m.page_header('Dashboard สรุป', 'ปีการศึกษา ' ~ year ~ ' · แสดงเฉพาะตัวเลขรวม ไม่มีชื่อ เนื้อหา หรือข้อมูลรายบุคคล') %}{% endcall %}
+<h2 class="section-title mb-2">การใช้งานระบบ</h2>
+<div class="row g-3 mb-4">
+  {{ tile('ผู้ใช้ทั้งหมด', usage.users) }}
+  {{ tile('ผู้ใช้ที่เข้าใช้ใน 30 วัน', usage.active_users) }}
+  {{ tile('ผู้ใช้ใหม่ใน 30 วัน', usage.new_users) }}
+  {{ tile('ผู้สมัครกรรมการ (ปีนี้)', usage.applicants) }}
+  {{ tile('คำขอยืมอุปกรณ์ทั้งหมด', usage.loans) }}
+  {{ tile('คำขอยืมที่ยังไม่ปิด', usage.loans_active) }}
+  {{ tile('เกินกำหนดคืน', usage.loans_overdue, 'text-danger') }}
+</div>
+<h2 class="section-title mb-2">คำร้อง</h2>
+{% if total.hidden %}
+<div class="alert alert-secondary small">จำนวนเรื่องทั้งหมดน้อยกว่า {{ total.min }} เรื่อง จึงไม่แสดงสถิติ เพื่อไม่ให้ระบุตัวผู้ร้องได้</div>
+{% else %}
+<div class="row g-3 mb-3">
+  {{ tile('เสนอมาทั้งหมด', total.all) }}
+  {{ tile('กำลังดำเนินการ', total.open) }}
+  {{ tile('ดำเนินการเสร็จสิ้น', total.closed) }}
+  {{ tile('ค้างเกิน SLA', total.overdue, 'text-danger') }}
+</div>
+<div class="card"><div class="table-responsive"><table class="table table-sm mb-0">
+  <thead><tr><th>ประเภท</th><th>เสนอมา</th><th>กำลังดำเนินการ</th><th>เสร็จสิ้น</th><th>ค้างเกิน SLA</th><th>เวลาเฉลี่ยจนปิดเรื่อง (วัน)</th></tr></thead><tbody>
+  {% for r in rows %}<tr><td>{{ r.name }}</td>
+    {% if r.hidden %}<td colspan="5" class="text-secondary small">น้อยกว่า {{ r.min }} เรื่อง — ไม่แสดง</td>
+    {% else %}<td>{{ r.all }}</td><td>{{ r.open }}</td><td>{{ r.closed }}</td><td>{{ r.overdue }}</td><td>{{ r.avg_days if r.avg_days is not none else '-' }}</td>{% endif %}</tr>
+  {% endfor %}
+  <tr class="fw-semibold"><td>รวม</td><td>{{ total.all }}</td><td>{{ total.open }}</td><td>{{ total.closed }}</td><td>{{ total.overdue }}</td><td>{{ total.avg_days if total.avg_days is not none else '-' }}</td></tr>
+  </tbody></table></div></div>
+{% endif %}
+{% endblock %}

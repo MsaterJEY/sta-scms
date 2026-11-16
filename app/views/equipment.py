@@ -243,7 +243,7 @@ def request_new():
             return redirect(url_for("equipment.request_new"))
         is_self = "EQUIP_HEAD" in user_roles(u)
         rid = repo().add("equipment_requests", {
-            "tracking_code": gen_code("EQ"), "requester_id": u["id"], "activity_id": f.get("activity_id") or None,
+            "tracking_code": gen_code("EQ"), "requester_id": u["id"], "activity_id": None, "event_name": f.get("event_name", "").strip()[:200],
             "purpose": f.get("purpose", "").strip(), "borrow_at": start, "due_at": end, "status": "PENDING",
             "is_self_request": is_self, "approval_request_id": None, "created_at": now_iso(),
         })
@@ -271,9 +271,8 @@ def request_new():
     end = form_dt(request.args.get("end")) or to_iso(parse_dt(start) + timedelta(days=1))
     for m in models:
         m["avail"] = available(m, start, end)
-    acts = [a for a in repo().all("activities") if a.get("status") != "DONE"]
     return render_template("eqp/request_form.html", models=models, doc_type=doc_type, blocks=borrow_blocks(u),
-                           start=start, end=end, acts=acts, preselect=request.args.get("model"))
+                           start=start, end=end, preselect=request.args.get("model"))
 
 
 def _filter_requests(args, user):
@@ -334,7 +333,7 @@ def request_detail(rid):
     return render_template("eqp/request_detail.html", r=r, items=items, models=models, units=units, docs=docs, fines=fines,
                            txs=txs, req_state=req_state, requester=requester, manage=manage,
                            self_approver=can("eqp.self_approve") and r.get("is_self_request"),
-                           overdue=is_overdue(r), activity=repo().get("activities", r.get("activity_id")),
+                           overdue=is_overdue(r), event_name=r.get("event_name") or (repo().get("activities", r.get("activity_id")) or {}).get("title"),
                            show_contact=manage or r["requester_id"] == u["id"],
                            default_fine=sum(int(it.get("qty_lost") or 0) * float(models.get(it["model_id"], {}).get("replacement_cost") or 0)
                                             for it in items))

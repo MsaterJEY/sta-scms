@@ -87,7 +87,7 @@
             ('pencil-square', 'svc.register', 'ลงทะเบียน', reg_url),
             ('question-circle', 'svc.faq', 'คำถามที่พบบ่อย', url_for('public.faq')),
             ('person-badge', 'svc.recruit', 'รับสมัครกรรมการ', url_for('recruit.index')),
-            ('calendar-event', 'svc.activity', 'กิจกรรม', url_for('activities.index')),
+            ('people', 'svc.team', 'สมัครทีมงาน', url_for('team.index')),
             ('chat-left-text', 'svc.ticket', 'คำร้อง', url_for('tickets.index')),
             ('door-open', 'svc.rooms', 'จองใช้ห้อง', url_for('public.coming_soon', key='rooms'))] %}
           <a class="service-btn" href="{{ link }}">

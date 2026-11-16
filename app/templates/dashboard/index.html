@@ -27,8 +27,11 @@
     <div class="card h-100"><div class="card-header d-flex justify-content-between">การสมัคร <a class="small" href="{{ url_for('recruit.my') }}">ทั้งหมด</a></div>
       <div class="card-body small">
         <div>ใบสมัครกรรมการ: <strong>{{ my_apps|length }}</strong></div>
-        <div>ใบสมัครทีมงาน: <strong>{{ my_staff_apps|length }}</strong> · <a href="{{ url_for('activities.my') }}">ดูสถานะ</a></div>
+        <div>ใบสมัครทีมงานกิจกรรม: <strong>{{ my_team_apps|length }}</strong> · <a href="{{ url_for('team.my') }}">ดูสถานะ</a></div>
+        {% if activities_on %}
+        <div>ใบสมัครทีมงาน (โมดูลกิจกรรม): <strong>{{ my_staff_apps|length }}</strong> · <a href="{{ url_for('activities.my') }}">ดูสถานะ</a></div>
         <div class="mt-3 p-3 bg-light rounded text-center"><div class="text-secondary">ชั่วโมงกิจกรรมสะสม</div><div class="fs-3 fw-bold text-sta">{{ '%.1f'|format(my_hours) }}</div></div>
+        {% endif %}
       </div></div>
   </div>
   {% endif %}

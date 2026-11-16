@@ -18,7 +18,8 @@ from app.utils import now  # noqa: E402
 
 tmp = tempfile.mkdtemp()
 app = create_app(LOCAL_DB_PATH=os.path.join(tmp, "db.json"), LOCAL_UPLOAD_DIR=os.path.join(tmp, "up"),
-                 WTF_CSRF_ENABLED=False, TESTING=True, SETUP_TOKEN="tok", CRON_SECRET="cron", SERVER_NAME="localhost")
+                 WTF_CSRF_ENABLED=False, TESTING=True, SETUP_TOKEN="tok", CRON_SECRET="cron", SERVER_NAME="localhost",
+                 ACTIVITIES_ENABLED=True)
 
 PW = "demo12345"
 FAILS = []
@@ -105,15 +106,15 @@ with app.app_context():
     print("== recruitment (REC)")
     r = ph.post("/recruit/new", data={"title": "รับสมัครกรรมการ 2569", "type": "COMMITTEE", "academic_year": 2569,
                                       "open_at": dt(-1), "close_at": dt(7), "min_year": 1,
-                                      "quota_COMM_ACADEMIC": 2, "quota_COMM_SPORT": 1,
+                                      "quota_COMM_ACTIVITY": 2, "quota_COMM_PR": 1,
                                       "crit_name": ["บุคลิก", "ความรู้"], "crit_max": [10, 10], "crit_weight": [1, 1]})
     rid = repo().all("recruitment_rounds")[0]["id"]
     ph.post(f"/recruit/{rid}/status", data={"status": "OPEN"})
     check(repo().get("recruitment_rounds", rid)["status"] == "OPEN", "round opened (no approval needed)")
     check(any(a.get("source_type") == "recruitment_round" for a in repo().all("announcements")), "auto draft announcement")
     rps = repo().where("round_positions", round_id=rid)
-    rp_ac = next(x for x in rps if x["position_id"] == "COMM_ACADEMIC")["id"]
-    rp_sp = next(x for x in rps if x["position_id"] == "COMM_SPORT")["id"]
+    rp_ac = next(x for x in rps if x["position_id"] == "COMM_ACTIVITY")["id"]
+    rp_sp = next(x for x in rps if x["position_id"] == "COMM_PR")["id"]
     get_ok(stu, f"/recruit/{rid}", "round detail (student)")
     stu.post(f"/recruit/{rid}/apply", data={"choice_1": rp_ac, "choice_2": rp_ac})
     check(not repo().where("member_applications", round_id=rid), "duplicate choice rejected")
@@ -172,7 +173,7 @@ with app.app_context():
     get_ok(stu, "/recruit/my", "my applications")
     res = repo().where("selection_results", user_id=repo().where("users", student_code="406865010")[0]["id"])[0]
     stu.post("/recruit/my", data={"result_id": res["id"], "action": "confirm"})
-    check(repo().where("position_holders", user_id=res["user_id"], position_id="COMM_ACADEMIC", status="ACTIVE"), "appointment creates position holder")
+    check(repo().where("position_holders", user_id=res["user_id"], position_id="COMM_ACTIVITY", status="ACTIVE"), "appointment creates position holder")
 
     print("== announcements (ANN)")
     get_ok(pr, "/manage/announcements")
@@ -192,10 +193,10 @@ with app.app_context():
     check("ยืมของยังไง" in pub.get("/faq").get_data(as_text=True), "FAQ visible publicly")
 
     print("== activities (ACT)")
-    acvp.post("/activities/new", data={"title": "ค่ายวิชาการ", "division_id": "ACADEMIC", "start_at": dt(10), "end_at": dt(11), "location": "หอประชุม"})
+    acvp.post("/activities/new", data={"title": "ค่ายวิชาการ", "division_id": "ACTIVITY", "start_at": dt(10), "end_at": dt(11), "location": "หอประชุม"})
     act = repo().all("activities")[0]
-    check(act["division_id"] == "ACADEMIC", "DIV_VP creates activity in own division")
-    r = acvp.post("/activities/new", data={"title": "x", "division_id": "SPORT", "start_at": dt(1), "end_at": dt(2)})
+    check(act["division_id"] == "ACTIVITY", "DIV_VP creates activity in own division")
+    r = acvp.post("/activities/new", data={"title": "x", "division_id": "PR", "start_at": dt(1), "end_at": dt(2)})
     check(r.status_code == 403, "cannot create in other division")
     acvp.post(f"/activities/{act['id']}/positions", data={"name": "พิธีกร", "quota": 2, "groups": ["STUDENT"], "open_at": dt(-1), "close_at": dt(5)})
     pos = repo().all("activity_positions")[0]
@@ -351,28 +352,67 @@ with app.app_context():
     check(repo().get("ticket_ratings", t1["id"])["score"] == 5, "rated")
     stu.post(f"/tickets/{t1['id']}/action", data={"action": "reopen"})
     check(repo().get("tickets", t1["id"])["status"] == "IN_PROGRESS", "reopened within 7 days")
-    # complaint against ADMIN_SEC, anonymous
-    stu.post("/tickets/new", data={"category_id": "COMPLAINT", "title": "ร้องเรียนเลขา", "detail": "...", "is_anonymous": "1",
-                                   "target_position_ids": ["ADMIN_SEC"]})
+    # complaint against ADMIN_SEC, anonymous (SRS v3: ไม่เก็บตัวตนผู้ส่ง ใช้รหัสติดตาม + PIN)
+    stu_id = repo().where("users", student_code="406865010")[0]["id"]
+    r = stu.post("/tickets/new", data={"category_id": "COMPLAINT", "title": "ร้องเรียนเลขา", "detail": "...", "is_anonymous": "1",
+                                       "target_position_ids": ["ADMIN_SEC"], "files": (io.BytesIO(b"x" * 50), "a.txt")},
+                 content_type="multipart/form-data")
     t2 = repo().where("tickets", title="ร้องเรียนเลขา")[0]
+    html = r.get_data(as_text=True)
+    pin = re.search(r"PIN</div><div[^>]*>(\d{6})<", html)
+    check(r.status_code == 200 and t2["tracking_code"] in html and pin, "anonymous ticket shows tracking code and PIN once")
+    pin = pin.group(1)
+    check(t2["submitter_id"] is None and pin not in str(t2) and not t2["files"], "anonymous ticket stores no submitter, no PIN, no files")
+    check(t2["created_at"].endswith("T00:00:00+07:00"), "anonymous created_at rounded to the day")
+    check(not repo().where("consents", ref=t2["id"]) and stu_id not in str(repo().where("audit_logs", entity_id=t2["id"])),
+          "no consent or audit row links the submitter")
     check(t2["handler_roles"] == ["PRES_SEC"] and "ADMIN_SEC" in t2["hidden_roles"], "routing when ADMIN_SEC targeted")
     check(asec.get(f"/tickets/{t2['id']}").status_code == 403, "hidden from target")
     check("ร้องเรียนเลขา" not in asec.get("/tickets/").get_data(as_text=True), "hidden from target queue")
+    check("ร้องเรียนเลขา" not in app.test_client().get(f"/tickets/{t2['id']}").get_data(as_text=True), "guest without PIN cannot read")
     r = psec.get(f"/tickets/{t2['id']}")
-    check(r.status_code == 200 and "นิรนาม" in r.get_data(as_text=True), "handler sees anonymous")
-    # complaint against PRES -> ADVISOR
+    check(r.status_code == 200 and "นิรนาม" in r.get_data(as_text=True) and "406865010" not in r.get_data(as_text=True), "handler sees anonymous")
+    anon = app.test_client()  # ผู้ส่งกลับมาดูโดยไม่ล็อกอิน
+    get_ok(anon, "/tickets/anon")
+    anon.post("/tickets/anon", data={"code": t2["tracking_code"], "pin": "000000" if pin != "000000" else "111111"})
+    check(anon.get(f"/tickets/{t2['id']}").status_code == 302, "wrong PIN gives no access")
+    r = anon.post("/tickets/anon", data={"code": t2["tracking_code"], "pin": pin})
+    check(r.status_code == 302 and anon.get(f"/tickets/{t2['id']}").status_code == 200, "tracking code + PIN opens the ticket")
+    anon.post(f"/tickets/{t2['id']}/action", data={"action": "message", "body": "ข้อมูลเพิ่ม"})
+    msg = repo().where("ticket_messages", ticket_id=t2["id"])[0]
+    check(msg["sender_id"] is None and msg["body"] == "ข้อมูลเพิ่ม", "anonymous owner replies without identity")
+    t_lock = dict(t2)
+    for _ in range(5):
+        app.test_client().post("/tickets/anon", data={"code": t2["tracking_code"], "pin": "999999" if pin != "999999" else "888888"})
+    check(repo().get("tickets", t2["id"]).get("pin_locked_until"), "PIN locked after repeated failures")
+    locked = app.test_client()
+    locked.post("/tickets/anon", data={"code": t2["tracking_code"], "pin": pin})
+    check(locked.get(f"/tickets/{t2['id']}").status_code == 302, "correct PIN refused while locked")
+    repo().update("tickets", t2["id"], {"pin_locked_until": None})
+    for i in range(2):
+        stu.post("/tickets/new", data={"category_id": "SUGGESTION", "title": f"นิรนาม {i}", "detail": "...", "is_anonymous": "1"})
+    stu.post("/tickets/new", data={"category_id": "SUGGESTION", "title": "นิรนามเกินโควตา", "detail": "...", "is_anonymous": "1"})
+    check(not repo().where("tickets", title="นิรนามเกินโควตา") and stu_id not in str(repo().all("ticket_anon_quota")),
+          "anonymous daily quota enforced without storing user id")
+    # เรื่องร้องเรียนนายกไม่รับผ่านระบบ (TKT-04, TKT-16, TKT-17)
+    form_html = stu.get("/tickets/new").get_data(as_text=True)
+    check('value="PRES"' not in form_html and "เรื่องร้องเรียนนายกสโมสรไม่รับผ่านระบบนี้" in form_html, "PRES not selectable, notice shown")
     stu.post("/tickets/new", data={"category_id": "COMPLAINT", "title": "ร้องเรียนนายก", "detail": "...", "target_position_ids": ["PRES"]})
     t3 = repo().where("tickets", title="ร้องเรียนนายก")[0]
-    check(t3["handler_roles"] == ["ADVISOR"] and "PRES_SEC" in t3["hidden_roles"], "PRES targeted -> ADVISOR, hidden from PRES_SEC")
-    check(pres.get(f"/tickets/{t3['id']}").status_code == 403 and psec.get(f"/tickets/{t3['id']}").status_code == 403, "hidden from PRES and PRES_SEC")
-    # escalate + reveal
-    psec.post(f"/tickets/{t2['id']}/action", data={"action": "escalate", "to": "PRESIDENT", "reason": "ร้ายแรง"})
+    check(t3["target_position_ids"] == [] and set(t3["handler_roles"]) == {"ADMIN_SEC", "PRES_SEC"}, "PRES target dropped, normal queue")
+    asec.post(f"/tickets/{t3['id']}/action", data={"action": "close_scope"})
+    t3 = repo().get("tickets", t3["id"])
+    check(t3["status"] == "CLOSED" and t3.get("out_of_scope") and not t3.get("reopen_until"), "close as out of scope (president matter)")
+    stu.post("/tickets/new", data={"category_id": "COMPLAINT", "title": "ร้องเรียนสองเลขา", "detail": "...",
+                                   "target_position_ids": ["ADMIN_SEC", "PRES_SEC"]})
+    t4 = repo().where("tickets", title="ร้องเรียนสองเลขา")[0]
+    check(t4["handler_roles"] == ["PRES"] and t4["routing_level"] == "PRESIDENT", "both secretaries targeted -> PRES")
+    # escalate ไปนายกเท่านั้น และไม่มีการเปิดตัวตน
+    psec.post(f"/tickets/{t2['id']}/action", data={"action": "escalate", "to": "ADVISOR", "reason": "ร้ายแรง"})
     t2 = repo().get("tickets", t2["id"])
-    check(t2["routing_level"] == "PRESIDENT", "escalated")
-    pres.post(f"/tickets/{t2['id']}/action", data={"action": "reveal"})
-    check(not repo().all("ticket_identity_reveals"), "reveal requires reason")
-    pres.post(f"/tickets/{t2['id']}/action", data={"action": "reveal", "reason": "ตรวจสอบข้อเท็จจริง"})
-    check("406865010" in pres.get(f"/tickets/{t2['id']}").get_data(as_text=True), "PRES sees identity after reveal")
+    check(t2["routing_level"] == "PRESIDENT" and t2["handler_roles"] == ["PRES"], "escalated to PRES only")
+    check(pres.post(f"/tickets/{t2['id']}/action", data={"action": "reveal", "reason": "x"}).status_code == 400
+          and "เปิดตัวตน" not in pres.get(f"/tickets/{t2['id']}").get_data(as_text=True), "identity reveal removed")
     check(len(repo().all("ticket_access_logs")) > 0, "ticket access logged")
     get_ok(pres, "/tickets/stats")
     r = pres.get("/export/ticket_stats?fmt=tsv")
@@ -380,15 +420,15 @@ with app.app_context():
 
     print("== documents / reports / cron")
     drive = "https://drive.google.com/file/d/abc/view"
-    acvp.post("/documents/", data={"title": "โครงการค่าย", "doc_type": "PROJECT", "division_id": "ACADEMIC",
+    acvp.post("/documents/", data={"title": "โครงการค่าย", "doc_type": "PROJECT", "division_id": "ACTIVITY",
                                    "access_level": "DIVISION", "url": drive})
     d = repo().where("documents", title="โครงการค่าย")[0]
     r = acvp.get(f"/documents/{d['id']}/open")
     check(r.status_code == 302 and r.headers["Location"] == drive, "owner opens doc link (redirect)")
     check(eqh.get(f"/documents/{d['id']}/open").status_code == 403, "other division cannot see DIVISION doc")
     check(pres.get(f"/documents/{d['id']}/open").status_code == 302, "PRES sees division doc")
-    acvp.post("/documents/", data={"title": "x", "division_id": "ACADEMIC", "url": "javascript:alert(1)"})
-    acvp.post("/documents/", data={"title": "y", "division_id": "ACADEMIC", "url": "http://insecure.example"})
+    acvp.post("/documents/", data={"title": "x", "division_id": "ACTIVITY", "url": "javascript:alert(1)"})
+    acvp.post("/documents/", data={"title": "y", "division_id": "ACTIVITY", "url": "http://insecure.example"})
     check(len(repo().all("documents")) == 1, "non-https link rejected")
     check("โครงการค่าย" not in eqh.get("/documents/").get_data(as_text=True), "doc hidden from other division list")
     get_ok(pres, "/documents/")
@@ -517,6 +557,125 @@ with app.app_context():
     check(not repo().get("team_events", tid) and not repo().where("team_applications", event_id=tid), "delete event with its data")
     check(not repo().get("activity_staff", tsid), "deleting event removes linked staff")
 
+    print("== SRS v3: org chart, fallback, advisor, feature flag")
+    from app.rbac import holders_of_role
+    from app.seed import migrate_v3, run_seed
+    run_seed(2569)
+    board = [p for p in repo().all("positions") if p.get("level") == "BOARD"]
+    check(len(board) == 23 and len(repo().all("divisions")) == 4 and len(repo().all("positions")) == 32,
+          "seed is idempotent: 23 board positions, 4 divisions")
+    check(all(p.get("academic_year") == 2569 and "function_code" in p for p in board), "board chart bound to year with function codes")
+    # สิทธิ์สำรองเมื่อตำแหน่งบุคลากรว่าง
+    avp_id = repo().where("users", student_code="406765003")[0]["id"]
+    check(avp.get("/recruit/new").status_code == 403, "ADMIN_VP has no rec.manage while PERSONNEL_HEAD is held")
+    ph_hold = repo().where("position_holders", position_id="PERSONNEL_HEAD", status="ACTIVE")[0]
+    admin.post("/admin/holders", data={"action": "end", "holder_id": ph_hold["id"], "year": 2569})
+    check(avp.get("/recruit/new").status_code == 200 and asec.get("/recruit/new").status_code == 200,
+          "vacant PERSONNEL_HEAD: ADMIN_VP and ADMIN_SEC get rec.manage")
+    check(avp_id in holders_of_role("PERSONNEL_HEAD"), "role notifications reach fallback holders")
+    check(eqh.get("/recruit/new").status_code == 403, "other board members get no fallback")
+    avp.post("/recruit/new", data={"title": "รอบสิทธิ์สำรอง", "type": "COMMITTEE", "academic_year": 2569, "open_at": dt(-1),
+                                   "close_at": dt(7), "min_year": 1, "quota_COMM_ADMIN": 1,
+                                   "crit_name": ["ก"], "crit_max": [10], "crit_weight": [1]})
+    logs = [a for a in repo().where("audit_logs", action="recruit.round_save") if a.get("via_fallback")]
+    check(logs and "rec.manage" in logs[-1]["via_fallback"] and "ใช้สิทธิ์สำรอง" in logs[-1]["note"], "audit log marks fallback use")
+    check("ใช้ผู้สำรอง" in admin.get("/admin/holders").get_data(as_text=True), "holders page shows vacancy fallback")
+    admin.post("/admin/holders", data={"action": "add", "identifier": "406765006", "position_id": "PERSONNEL_HEAD", "year": 2569})
+    check(avp.get("/recruit/new").status_code == 403 and ph.get("/recruit/new").status_code == 200, "rights return when position is filled")
+    # ผังรายปี
+    get_ok(admin, "/admin/positions")
+    admin.post("/admin/years", data={"action": "add", "year": 2570, "start_date": "2027-06-01", "end_date": "2028-05-31"})
+    admin.post("/admin/positions", data={"action": "copy_chart", "year": 2569, "to_year": 2570})
+    c70 = [p for p in repo().all("positions") if p.get("academic_year") == 2570]
+    check(len(c70) == 23 and repo().get("positions", "ADMIN_SEC-2570")["parent_id"] == "ADMIN_VP-2570", "copy chart to next year keeps hierarchy")
+    admin.post("/admin/positions", data={"action": "position", "year": 2570, "position_id": "PERSONNEL_HEAD-2570", "name": "หัวหน้าฝ่ายบุคลากรและสวัสดิการ",
+                                         "level": "BOARD", "division_id": "ADMIN", "function_code": "PERSONNEL_HEAD", "single_holder": "1"})
+    check(repo().get("positions", "PERSONNEL_HEAD-2570")["name"].endswith("สวัสดิการ") and repo().get("positions", "PERSONNEL_HEAD")["name"] == "หัวหน้าฝ่ายบุคลากร",
+          "editing next year's chart leaves the current chart untouched")
+    admin.post("/admin/positions", data={"action": "position", "year": 2569, "position_id": "EQUIP_HEAD", "name": "หัวหน้าฝ่ายอุปกรณ์และสถานที่",
+                                         "level": "BOARD", "division_id": "ADMIN", "function_code": "", "single_holder": "1"})
+    check("EQUIP_HEAD" in repo().get("positions", "EQUIP_HEAD")["roles"], "locked position keeps its function")
+    check("ADMIN_VP-2570" not in [p["id"] for p in repo().all("positions") if p.get("academic_year") in (None, 2569)]
+          and 'value="ADMIN_VP-2570"' not in admin.get("/admin/holders?year=2569").get_data(as_text=True), "holders page lists only that year's chart")
+    # อาจารย์ที่ปรึกษา: Dashboard สรุปอย่างเดียว
+    adv_id = repo().add("users", {"email": "advisor@demo.local", "first_name": "อาจารย์", "last_name": "ที่ปรึกษา", "account_type": "EXTERNAL",
+                                  "status": "ACTIVE", "system_roles": [], "failed_logins": 0, "created_at": "2026-01-01T00:00:00+07:00",
+                                  "password_hash": repo().where("users", student_code="406765001")[0]["password_hash"]})
+    admin.post("/admin/holders", data={"action": "add", "identifier": "advisor@demo.local", "position_id": "ADVISOR", "year": 2569})
+    adv = client_for("advisor@demo.local")
+    r = get_ok(adv, "/reports/advisor", "advisor dashboard")
+    body = r.get_data(as_text=True)
+    check("406865010" not in body and "ร้องเรียน" in body and "ร้องเรียนเลขา" not in body, "advisor dashboard has totals only, no names or content")
+    for u in ["/reports/", "/tickets/stats", "/documents/", "/admin/audit", f"/tickets/{t2['id']}", "/equipment/manage"]:
+        check(adv.get(u).status_code in (302, 403), f"advisor blocked from {u}")
+    check(adv.get("/export/ticket_stats?fmt=tsv").status_code == 403 and adv.get("/export/holders?fmt=tsv").status_code == 403,
+          "advisor cannot export detailed data")
+    check(stu.get("/reports/advisor").status_code == 403, "advisor dashboard needs dashboard.advisor")
+    # ประกาศ: ทีมสื่อร่างได้อย่างเดียว
+    repo().add("position_holders", {"user_id": stu_id, "position_id": "PHOTO_HEAD", "position_code": "PHOTO_HEAD", "academic_year": 2569,
+                                    "start_date": "2026-06-01", "end_date": None, "status": "ACTIVE", "source": "TEST", "created_at": "x"})
+    photo = client_for("406865010")
+    photo.post("/manage/announcements/new", data={"title": "ร่างจากทีมสื่อ", "body": "x", "category_id": "NEWS", "is_pinned": "1"})
+    dr = repo().where("announcements", title="ร่างจากทีมสื่อ")[0]
+    check(dr["status"] == "DRAFT" and not dr["is_pinned"], "media team creates draft only")
+    check(photo.post(f"/manage/announcements/{dr['id']}/status", data={"action": "publish"}).status_code == 403, "media team cannot publish")
+    pr.post(f"/manage/announcements/{dr['id']}/status", data={"action": "publish"})
+    check(repo().get("announcements", dr["id"])["status"] == "PUBLISHED", "PR_VP publishes the draft")
+    check(photo.get(f"/manage/announcements/{dr['id']}/edit").status_code == 403, "media team cannot edit published item")
+    for hh in repo().where("position_holders", user_id=stu_id, position_id="PHOTO_HEAD"):
+        repo().delete("position_holders", hh["id"])
+    # อุปกรณ์: ชื่อกิจกรรมเป็นข้อความ
+    check("event_name" in get_ok(stu, "/equipment/request/new").get_data(as_text=True) and 'name="activity_id"' not in stu.get("/equipment/request/new").get_data(as_text=True),
+          "equipment request uses free-text event name")
+    # เอกสาร: บอร์ดในกองบันทึกเอกสารของกองตนได้
+    eqh.post("/documents/", data={"title": "ทะเบียนครุภัณฑ์", "doc_type": "OTHER", "division_id": "ADMIN", "access_level": "DIVISION",
+                                  "url": "https://drive.google.com/file/d/eq/view"})
+    check(repo().where("documents", title="ทะเบียนครุภัณฑ์"), "board member records document for own division")
+    eqh.post("/documents/", data={"title": "ข้ามกอง", "division_id": "PR", "url": "https://drive.google.com/file/d/x/view"})
+    check(not repo().where("documents", title="ข้ามกอง"), "board member cannot record for another division")
+    # ปิดโมดูลกิจกรรม
+    app.config["ACTIVITIES_ENABLED"] = False
+    check(stu.get("/activities/").status_code == 404 and acvp.get("/activities/new").status_code == 404, "activities module off -> 404")
+    home = stu.get("/").get_data(as_text=True)
+    check("/activities/" not in home and "/team/" in home, "activity links hidden, team recruitment kept")
+    for u in ["/app/", "/reports/", "/documents/", "/team/manage/new", "/admin/permissions", "/tickets/"]:
+        get_ok(pres if u == "/reports/" else (admin if u.startswith("/admin") else ph), u, f"{u} with activities off")
+    check("act.manage" not in admin.get("/admin/permissions").get_data(as_text=True), "activity permissions hidden when off")
+    check(avp.get("/admin/delegations").status_code == 404 and 'name="activity_id"' not in ph.get("/team/manage/new").get_data(as_text=True),
+          "delegation page and team-activity link hidden when off")
+    app.config["ACTIVITIES_ENABLED"] = True
+
+    print("== SRS v3: migration from the pre-v3 structure")
+    r_ = repo()
+    r_.set("divisions", "SPORT", {"code": "SPORT", "name": "กองกีฬา"})
+    r_.set("positions", "SPORT_VP", {"code": "SPORT_VP", "name": "อุปนายกกองกีฬา", "level": "BOARD", "division_id": "SPORT",
+                                     "roles": ["BOARD", "DIV_VP"], "single_holder": True, "locked_required": False})
+    r_.set("positions", "PR_HEAD", {"code": "PR_HEAD", "name": "หัวหน้าฝ่ายประชาสัมพันธ์", "level": "BOARD", "division_id": "ADMIN",
+                                    "roles": ["BOARD", "PR"], "single_holder": False, "locked_required": False})
+    u7id = repo().where("users", student_code="406765007")[0]["id"]
+    h1 = r_.add("position_holders", {"user_id": u7id, "position_id": "SPORT_VP", "position_code": "SPORT_VP", "academic_year": 2569, "status": "ACTIVE"})
+    h2 = r_.add("position_holders", {"user_id": u7id, "position_id": "PR_HEAD", "position_code": "PR_HEAD", "academic_year": 2569, "status": "ACTIVE"})
+    tp_old = r_.add("team_positions", {"event_id": "x", "name": "กรรมการผู้ตัดสิน", "division_id": "SPORT", "restrict_divisions": ["SPORT", "ADMIN"]})
+    tk_old = r_.add("tickets", {"tracking_code": "TOLD", "is_anonymous": True, "submitter_id": u7id, "status": "SUBMITTED", "category_id": "GENERAL",
+                                "title": "เก่า", "handler_roles": [], "viewer_roles": []})
+    eq_old = r_.add("equipment_requests", {"requester_id": u7id, "activity_id": act["id"], "status": "CLOSED"})
+    r_.delete("system_settings", "migrations")
+    check("ย้ายเป็นผังบอร์ด 69" in admin.get("/admin/positions").get_data(as_text=True), "positions page offers the v3 migration")
+    admin.post("/admin/positions", data={"action": "migrate_v3"})
+    check(r_.get("position_holders", h1)["position_id"] == "SPORT_HEAD" and r_.get("position_holders", h1)["status"] == "ACTIVE",
+          "old division VP moved to the same-named unit head")
+    check(r_.get("position_holders", h2)["status"] == "ENDED", "holder of a removed position is ended")
+    check(not r_.get("positions", "SPORT_VP") and not r_.get("divisions", "SPORT"), "old positions and divisions removed")
+    tpm = r_.get("team_positions", tp_old)
+    check(tpm["division_id"] == "ACTIVITY" and tpm["unit_name"] == "กีฬา" and tpm["restrict_divisions"] == ["ACTIVITY", "ADMIN"],
+          "team position moved to the activity division, unit name kept")
+    check(r_.get("tickets", tk_old)["submitter_id"] is None, "existing anonymous tickets lose submitter id")
+    eqm = r_.get("equipment_requests", eq_old)
+    check(eqm["event_name"] == act["title"] and eqm["activity_id"] is None, "equipment request keeps event name as text")
+    check("ย้ายเป็นผังบอร์ด 69 (v3)" not in admin.get("/admin/positions").get_data(as_text=True), "migration banner gone after migrating")
+    check(migrate_v3(2569)["holders_moved"] == 0, "migration is repeatable")
+    r_.delete("team_positions", tp_old)
+
     print("== admin menu access")
     asec_c = client_for("406765004")
     check("ผู้ถือตำแหน่งตามวาระ" in get_ok(asec_c, "/admin/holders", "holders as ADMIN_SEC").get_data(as_text=True), "ADMIN_SEC uses holders page")
@@ -551,7 +710,7 @@ with app.app_context():
         "406865010": ["/recruit/", "/activities/", "/tickets/", "/equipment/requests?mine=1", f"/equipment/request/{rid_}",
                       f"/tickets/{t1['id']}", "/recruit/my"],
         "406765009": ["/activities/new", f"/activities/{act['id']}/edit", f"/activities/{act['id']}",
-                      f"/activities/batch/{sb['id']}", "/documents/", "/reports/"],
+                      f"/activities/batch/{sb['id']}", "/documents/", "/team/manage"],
         "406765008": ["/manage/announcements/new", "/manage/announcements?status=DRAFT"],
         "406765002": ["/manage/faq", "/tickets/", "/tickets/?status=CLOSED", "/manage/faq?edit=" + repo().all("faqs")[0]["id"]],
         "406765003": ["/app/approvals", "/admin/delegations", f"/equipment/request/{sr['id']}", "/tickets/", f"/recruit/batch/{bid}"],

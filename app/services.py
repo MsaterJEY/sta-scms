@@ -5,26 +5,33 @@ from email.message import EmailMessage
 from flask import current_app, request
 
 from .db import repo
-from .rbac import current_user, holders_of_role, user_roles
+from .rbac import current_user, fallback_used, holders_of_role, user_roles
 from .utils import now_iso
 
 
 # ---------- Audit (AUD-01) เพิ่มอย่างเดียว ----------
-def audit(action, entity_type, entity_id=None, old=None, new=None, note=None, actor_id=None):
-    u = current_user()
-    try:
-        ip = request.headers.get("x-forwarded-for", request.remote_addr)
-    except RuntimeError:
-        ip = None
+def audit(action, entity_type, entity_id=None, old=None, new=None, note=None, actor_id=None, anonymous=False):
+    """anonymous=True: ไม่บันทึกผู้ทำและ IP (เรื่องร้องเรียนนิรนาม TKT-20)"""
+    u = None if anonymous else current_user()
+    ip = None
+    if not anonymous:
+        try:
+            ip = request.headers.get("x-forwarded-for", request.remote_addr)
+        except RuntimeError:
+            ip = None
+    used = [] if anonymous else fallback_used()
+    if used:  # ORG-13
+        note = f"[ใช้สิทธิ์สำรอง: {', '.join(used)}] {note or ''}".strip()
     repo().add("audit_logs", {
-        "actor_id": actor_id or (u["id"] if u else None),
-        "actor_name": display_name(u) if u else "system",
+        "actor_id": None if anonymous else (actor_id or (u["id"] if u else None)),
+        "actor_name": "นิรนาม" if anonymous else (display_name(u) if u else "system"),
         "action": action,
         "entity_type": entity_type,
         "entity_id": entity_id,
         "old": old,
         "new": new,
         "note": note,
+        "via_fallback": used or None,
         "ip": ip,
         "at": now_iso(),
     })
@@ -32,6 +39,8 @@ def audit(action, entity_type, entity_id=None, old=None, new=None, note=None, ac
 
 # ---------- แจ้งเตือน (NTF-01) ----------
 def notify(user_ids, title, body="", link=None, email=False):
+    if not user_ids:
+        return
     if isinstance(user_ids, str):
         user_ids = [user_ids]
     for uid in set(filter(None, user_ids)):

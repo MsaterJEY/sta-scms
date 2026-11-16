@@ -15,6 +15,13 @@ from ..utils import form_dt, now, now_iso, overlaps, parse_dt, setting, slugify,
 
 bp = Blueprint("activities", __name__, url_prefix="/activities")
 
+@bp.before_request
+def _feature_flag():
+    """SRS v3 ตัดโมดูลกิจกรรม: ปิดทุกเส้นทางจนกว่าจะตั้ง ACTIVITIES_ENABLED=1 (ข้อมูลเดิมยังอยู่ในฐานข้อมูล)"""
+    if not current_app.config.get("ACTIVITIES_ENABLED"):
+        abort(404)
+
+
 GROUP_LABELS = {"COMM": "กรรมการ", "SUBCOMM": "อนุกรรมการ", "STUDENT": "นักศึกษาคณะวิทยาศาสตร์ฯ"}
 
 

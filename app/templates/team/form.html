@@ -171,14 +171,16 @@
           {% set has_cover = ev.cover_path and ev.id %}
           <div class="evx-cover-preview" id="evCoverBox" {% if not has_cover %}hidden{% endif %}>
             <img id="evCoverImg" {% if has_cover %}src="{{ team_cover_url(ev) }}" data-saved="{{ team_cover_url(ev) }}"{% endif %} alt="ตัวอย่างรูปปก">
-            <span class="evx-cover-new" id="evCoverNew" hidden><i class="bi bi-eye"></i> ตัวอย่างรูปใหม่ — ยังไม่บันทึก</span>
+            <span class="evx-cover-new" id="evCoverNew" hidden><i class="bi bi-eye"></i>ยังไม่บันทึก</span>
             {% if has_cover %}<label class="evx-cover-remove" id="evCoverRemove"><input type="checkbox" name="remove_cover"> ลบรูป</label>{% endif %}
             <button type="button" class="evx-cover-remove" id="evCoverCancel" hidden><i class="bi bi-x-lg"></i> ยกเลิกรูปใหม่</button>
           </div></div>
+        {% if activities_on %}
         <div class="mb-3"><label class="form-label" for="evAct">เชื่อมกับกิจกรรมในโมดูลกิจกรรม <span class="evx-optional">(ไม่บังคับ)</span></label>
           <select class="form-select" id="evAct" name="activity_id"><option value="">ไม่เชื่อม</option>
             {% for a in activities %}<option value="{{ a.id }}" {% if ev.activity_id == a.id %}selected{% endif %}>{{ a.title }} ({{ a.start_at|thaiday }})</option>{% endfor %}</select>
           <div class="form-text">ถ้าเชื่อม ผู้ที่ผ่านการคัดเลือกจะเป็นทีมงานของกิจกรรมนั้นทันที เช็กชื่อด้วย QR และได้ชั่วโมงกิจกรรม</div></div>
+        {% endif %}
         <div class="mb-3"><label class="form-label" for="evDesc">คำอธิบาย</label><textarea class="form-control" id="evDesc" name="description" rows="3" placeholder="รายละเอียดโดยย่อ">{{ ev.description or '' }}</textarea></div>
         <div class="mb-3"><label class="form-label" for="evNote">หมายเหตุ</label><input class="form-control" id="evNote" name="note" value="{{ ev.note or '' }}" placeholder="เช่น ยกเว้นวันที่ 5, 12 มีนาคม"></div>
         <div class="evx-nav {% if not wizard %}evx-nav-split{% endif %}">

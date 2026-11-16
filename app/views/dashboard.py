@@ -1,5 +1,5 @@
 """หน้าหลักหลังล็อกอิน แจ้งเตือน และศูนย์รวมรายการรออนุมัติ"""
-from flask import Blueprint, redirect, render_template, request, url_for
+from flask import Blueprint, current_app, redirect, render_template, request, url_for
 
 from ..db import repo
 from ..rbac import can, current_user, login_required, user_holdings
@@ -28,8 +28,9 @@ def pending_approvals_for(user):
 @login_required
 def index():
     u = current_user()
+    activities_on = bool(current_app.config.get("ACTIVITIES_ENABLED"))
     tasks = {}
-    if can("rec.approve") or can("act.approve") or can("eqp.self_approve"):
+    if can("rec.approve") or can("eqp.self_approve") or (activities_on and can("act.approve")):
         tasks["approvals"] = len([x for x in pending_approvals_for(u) if not x["mine_done"]])
     if can("eqp.manage"):
         tasks["eqp_pending"] = len(repo().where("equipment_requests", status="PENDING"))
@@ -37,12 +38,13 @@ def index():
         tasks["tickets_open"] = len(repo().where("tickets", status="SUBMITTED"))
     my_loans = [r for r in repo().where("equipment_requests", requester_id=u["id"])
                 if r.get("status") not in ("CLOSED", "REJECTED", "CANCELLED")]
-    my_hours = sum(float(h.get("hours") or 0) for h in repo().where("activity_hours", user_id=u["id"]))
+    my_hours = sum(float(h.get("hours") or 0) for h in repo().where("activity_hours", user_id=u["id"])) if activities_on else 0
     my_apps = repo().where("member_applications", user_id=u["id"])
-    my_staff_apps = repo().where("activity_applications", user_id=u["id"])
+    my_staff_apps = repo().where("activity_applications", user_id=u["id"]) if activities_on else []
+    my_team_apps = repo().where("team_applications", user_id=u["id"])
     notes = sorted(repo().where("notifications", user_id=u["id"]), key=lambda n: n.get("created_at", ""), reverse=True)[:5]
     return render_template("dashboard/index.html", tasks=tasks, my_loans=my_loans, my_hours=my_hours,
-                           my_apps=my_apps, my_staff_apps=my_staff_apps, notes=notes, holdings=user_holdings(u["id"]))
+                           my_apps=my_apps, my_staff_apps=my_staff_apps, my_team_apps=my_team_apps, notes=notes, holdings=user_holdings(u["id"]))
 
 
 @bp.route("/notifications", methods=["GET", "POST"])

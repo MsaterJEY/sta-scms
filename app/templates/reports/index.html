@@ -15,11 +15,13 @@
   <div class="col-lg-6"><div class="card h-100"><div class="card-header">นักศึกษาตามสาขา</div><div class="card-body"><canvas id="cProgram" height="260"></canvas></div></div></div>
   <div class="col-lg-6"><div class="card h-100"><div class="card-header">อุปกรณ์ที่ถูกยืมมากที่สุด (จำนวนที่จ่าย)</div><div class="card-body"><canvas id="cEqp" height="260"></canvas></div></div></div>
 </div>
+{% if activities_on %}
 <div class="card mb-3"><div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">กิจกรรมและทีมงาน {{ m.export_buttons('report_activities', {'year': year}) }}</div>
   <div class="table-responsive"><table class="table table-sm mb-0"><thead><tr><th>กิจกรรม</th><th>กอง</th><th>วันที่</th><th>ทีมงานยืนยัน</th><th>ชั่วโมงรวม</th><th>สถานะ</th></tr></thead><tbody>
   {% for x in act_rows %}<tr><td>{{ x.a.title }}</td><td class="small">{{ x.div }}</td><td class="small">{{ x.a.start_at|thaiday }}</td><td>{{ x.staff }}</td><td>{{ '%.1f'|format(x.hours) }}</td><td>{{ m.badge('DONE' if x.a.status == 'DONE' else 'IN_PROGRESS') }}</td></tr>
   {% else %}<tr><td colspan="6">{{ m.empty() }}</td></tr>{% endfor %}</tbody></table></div>
   <div class="card-body border-top small">ชั่วโมงกิจกรรมรวมรายบุคคล: {{ m.export_buttons('report_hours') }}</div></div>
+{% endif %}
 <div class="row g-3">
   <div class="col-lg-6"><div class="card h-100"><div class="card-header">รับสมัครกรรมการ/อนุกรรมการ</div><table class="table table-sm mb-0"><thead><tr><th>รอบ</th><th>ผู้สมัคร</th><th>ผ่าน (อนุมัติครบ)</th></tr></thead><tbody>
     {% for x in rec %}<tr><td><a href="{{ url_for('recruit.detail', rid=x.round.id) }}">{{ x.round.title }}</a></td><td>{{ x.apps }}</td><td>{{ x.pass }}</td></tr>{% else %}<tr><td colspan="3">{{ m.empty() }}</td></tr>{% endfor %}</tbody></table>
