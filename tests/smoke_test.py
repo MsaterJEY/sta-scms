@@ -773,6 +773,29 @@ with app.app_context():
     check(not line_mod.link_of(stu_id) and not repo().get("notification_preferences", stu_id), "unlink deletes LINE user id and preferences")
     app.config.update(LINE_CHANNEL_ACCESS_TOKEN="", LINE_CHANNEL_SECRET="", LINE_TRANSPORT=None)
 
+    print("== home banners")
+    home0 = app.test_client().get("/").get_data(as_text=True)
+    check("/static/img/banners/" in home0, "home shows default banners until one is uploaded")
+    get_ok(admin, "/manage/banners")
+    check(stu.get("/manage/banners").status_code == 403, "student cannot manage banners")
+    admin.post("/manage/banners", data={"action": "add", "title": "งานรับน้อง", "link": "javascript:alert(1)",
+                                        "image": [(io.BytesIO(jpg), "b1.jpg"), (io.BytesIO(jpg[:4] + b"2" * 300), "b2.jpg")]},
+               content_type="multipart/form-data")
+    bn = sorted(repo().all("home_banners"), key=lambda b: b["order"])
+    check(len(bn) == 2 and bn[0]["link"] == "" and bn[0]["title"] == "งานรับน้อง", "upload banners, unsafe link dropped")
+    home1 = app.test_client().get("/").get_data(as_text=True)
+    check(f"/banner/{bn[0]['id']}" in home1 and "/static/img/banners/" not in home1, "home uses uploaded banners")
+    check(app.test_client().get(f"/banner/{bn[0]['id']}").data == jpg, "banner image is public")
+    admin.post("/manage/banners", data={"action": "down", "banner_id": bn[0]["id"]})
+    check(repo().get("home_banners", bn[0]["id"])["order"] == 2 and repo().get("home_banners", bn[1]["id"])["order"] == 1, "reorder banners")
+    admin.post("/manage/banners", data={"action": "save", "banner_id": bn[0]["id"], "title": "x", "link": "/news"})
+    check(f"/banner/{bn[0]['id']}" not in app.test_client().get("/").get_data(as_text=True)
+          and repo().get("home_banners", bn[0]["id"])["link"] == "/news", "hidden banner not shown, internal link kept")
+    for b in bn:
+        admin.post("/manage/banners", data={"action": "delete", "banner_id": b["id"]})
+    check(not repo().all("home_banners") and "/static/img/banners/" in app.test_client().get("/").get_data(as_text=True),
+          "deleting all banners restores the defaults")
+
     print("== admin menu access")
     asec_c = client_for("406765004")
     check("ผู้ถือตำแหน่งตามวาระ" in get_ok(asec_c, "/admin/holders", "holders as ADMIN_SEC").get_data(as_text=True), "ADMIN_SEC uses holders page")

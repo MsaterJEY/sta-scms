@@ -2,122 +2,161 @@
 {% import "macros.html" as m with context %}
 {% block title %}หน้าหลัก{% endblock %}
 
-{% macro news_list(items) %}
-  {% for a in items %}
-  <a class="news-item" href="{{ url_for('public.news_detail', slug=a.slug) }}">
-    <div class="news-thumb">
-      {% if a.cover_path %}<img src="{{ url_for('announcements.cover', aid=a.id) }}" alt="" loading="lazy">
-      {% else %}<i class="bi bi-megaphone"></i>{% endif %}
-    </div>
-    <div class="news-text">
-      <div class="d-flex flex-wrap gap-2 align-items-center small mb-1">
-        {% if a.is_pinned %}<span class="badge text-bg-warning"><i class="bi bi-pin-angle"></i> ปักหมุด</span>{% endif %}
-        <span class="badge text-bg-light">{{ cats.get(a.category_id, {}).get('name', '') }}</span>
-        <span class="text-secondary">{{ a.publish_at|thaiday }}</span>
-      </div>
-      <div class="news-title">{{ a.title }}</div>
-      <div class="news-excerpt">{{ (a.body or '')[:180] }}</div>
-    </div>
-    <i class="bi bi-chevron-right news-arrow"></i>
-  </a>
-  {% else %}{{ m.empty('ยังไม่มีประกาศ') }}{% endfor %}
-{% endmacro %}
-
 {% set reg_url = url_for('auth.register') if not me else url_for('team.index') %}
 
-{% block content %}
-<section class="hero-wrap mb-4">
-  <div id="heroBanner" class="carousel slide" data-bs-ride="carousel">
-    {% if banners|length > 1 %}
-    <div class="carousel-indicators">
-      {% for b in banners %}<button type="button" data-bs-target="#heroBanner" data-bs-slide-to="{{ loop.index0 }}" {% if loop.first %}class="active" aria-current="true"{% endif %} aria-label="ภาพที่ {{ loop.index }}"></button>{% endfor %}
-    </div>
-    {% endif %}
-    <div class="carousel-inner">
-      {% for b in banners %}
-      <div class="carousel-item {% if loop.first %}active{% endif %}">
-        <img class="hero-img" src="{{ url_for('static', filename=b) }}" alt="Banner {{ loop.index }}" {% if not loop.first %}loading="lazy"{% endif %}>
+{% macro news_row(a) %}
+<a class="news-row" href="{{ url_for('public.news_detail', slug=a.slug) }}">
+  <span class="news-row-text">
+    <span class="news-row-title">{% if a.is_pinned %}<i class="bi bi-pin-angle-fill text-warning me-1"></i>{% endif %}{{ a.title }}</span>
+    <span class="news-row-meta">{{ cats.get(a.category_id, {}).get('name', '') }} · {{ a.publish_at|thaiday }}</span>
+  </span>
+  <i class="bi bi-chevron-right"></i>
+</a>
+{% endmacro %}
+
+{% block hero %}
+<section class="home-hero">
+  <div class="container-xl">
+    <div class="row align-items-center g-4 g-lg-5">
+      <div class="col-lg-6">
+        <h1 class="home-hero-title">พื้นที่ของนักศึกษา</h1>
+        <p class="home-hero-lead">ร่วมสร้างสรรค์กิจกรรม พัฒนาศักยภาพ<br>เติบโตไปด้วยกันในรั้ว STA YRU</p>
+        <p class="home-hero-sub">เชื่อมโยงข่าวสาร กิจกรรม และบริการสำหรับนักศึกษาทุกคน</p>
+        <div class="d-flex flex-wrap gap-3 mt-4">
+          <a class="btn btn-accent btn-pill btn-lg" href="{{ url_for('team.index') }}">สำรวจกิจกรรม <i class="bi bi-arrow-right"></i></a>
+          <a class="btn btn-outline-light btn-pill btn-lg" href="#services">บริการนักศึกษา</a>
+        </div>
       </div>
-      {% else %}
-      <div class="carousel-item active">
-        <div class="hero-img hero-fallback"><span class="h3 fw-bold mb-0" data-i18n="brand">สโมสรนักศึกษาคณะวิทย์ฯ</span></div>
+      <div class="col-lg-6">
+        <div class="home-hero-frame">
+          <div id="heroBanner" class="carousel slide" data-bs-ride="carousel">
+            <div class="carousel-inner">
+              {% for b in banners %}
+              <div class="carousel-item {% if loop.first %}active{% endif %}">
+                {% if b.link %}<a href="{{ b.link }}">{% endif %}<img class="home-hero-img {{ 'is-default' if b.default }}" src="{{ b.url }}" alt="{{ b.title or 'ภาพกิจกรรม ' ~ loop.index }}" {% if not loop.first %}loading="lazy"{% endif %}>{% if b.link %}</a>{% endif %}
+              </div>
+              {% else %}
+              <div class="carousel-item active"><div class="home-hero-img home-hero-empty"><i class="bi bi-people"></i><span>พื้นที่สำหรับภาพกิจกรรมนักศึกษา</span></div></div>
+              {% endfor %}
+            </div>
+            {% if banners|length > 1 %}
+            <div class="carousel-indicators home-hero-dots">
+              {% for b in banners %}<button type="button" data-bs-target="#heroBanner" data-bs-slide-to="{{ loop.index0 }}" {% if loop.first %}class="active" aria-current="true"{% endif %} aria-label="ภาพที่ {{ loop.index }}"></button>{% endfor %}
+            </div>
+            {% endif %}
+          </div>
+        </div>
       </div>
-      {% endfor %}
     </div>
-    {% if banners|length > 1 %}
-    <button class="carousel-control-prev" type="button" data-bs-target="#heroBanner" data-bs-slide="prev" aria-label="ก่อนหน้า"><span class="carousel-control-prev-icon"></span></button>
-    <button class="carousel-control-next" type="button" data-bs-target="#heroBanner" data-bs-slide="next" aria-label="ถัดไป"><span class="carousel-control-next-icon"></span></button>
-    {% endif %}
   </div>
-  <div class="hero-actions">
-    <a href="{{ reg_url }}"><i class="bi bi-pencil-square"></i><span data-i18n="svc.register">ลงทะเบียน</span></a>
-    <a href="{{ url_for('public.coming_soon', key='shop') }}"><i class="bi bi-bag"></i><span data-i18n="svc.shop">ร้านค้า</span></a>
-    <a href="{{ url_for('equipment.catalog') }}"><i class="bi bi-box-seam"></i><span data-i18n="svc.borrow">ยืม-คืน</span></a>
+</section>
+{% endblock %}
+
+{% block content %}
+<section class="panel panel-float mb-5" id="services">
+  <div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-3">
+    <div>
+      <h2 class="home-h2 mb-1">บริการสำหรับนักศึกษา</h2>
+      <div class="text-secondary small">เข้าถึงบริการที่ต้องการได้อย่างรวดเร็ว</div>
+    </div>
+  </div>
+  <div class="service-tiles">
+    {% for icon, key, label, link in [
+      ('pencil-square', 'svc.register', 'ลงทะเบียน', reg_url),
+      ('bag', 'svc.shop', 'ร้านค้าสโมสร', url_for('public.coming_soon', key='shop')),
+      ('box-seam', 'svc.borrow', 'ยืม-คืนอุปกรณ์', url_for('equipment.catalog')),
+      ('people', 'svc.team', 'สมัครทีมงาน', url_for('team.index')),
+      ('chat-left-text', 'svc.ticket', 'ส่งคำร้องออนไลน์', url_for('tickets.index')),
+      ('person-badge', 'svc.recruit', 'รับสมัครกรรมการ', url_for('recruit.index')),
+      ('door-open', 'svc.rooms', 'จองใช้ห้อง', url_for('public.coming_soon', key='rooms')),
+      ('question-circle', 'svc.faq', 'ช่วยเหลือ', url_for('public.faq'))] %}
+    <a class="service-tile" href="{{ link }}">
+      <i class="bi bi-{{ icon }}"></i>
+      <span data-i18n="{{ key }}">{{ label }}</span>
+    </a>
+    {% endfor %}
   </div>
 </section>
 
-<div class="row g-4">
-  <div class="col-lg-8">
-    <div class="d-flex justify-content-between align-items-end mb-2">
-      <h2 class="section-title mb-0" data-i18n="home.news">ข่าวสาร/ประชาสัมพันธ์</h2>
-      <a href="{{ url_for('public.news') }}" class="small" data-i18n="home.all">ดูทั้งหมด</a>
-    </div>
-    <div class="card">
-      <div class="card-body">
-        <ul class="nav nav-pills news-tabs mb-3" role="tablist">
-          <li class="nav-item" role="presentation"><button class="nav-link active" data-bs-toggle="pill" data-bs-target="#newsLatest" type="button" role="tab" aria-selected="true" data-i18n="home.latest">ล่าสุด</button></li>
-          <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#newsNotice" type="button" role="tab" aria-selected="false" data-i18n="home.notice">ประกาศ</button></li>
-        </ul>
-        <div class="tab-content">
-          <div class="tab-pane fade show active" id="newsLatest" role="tabpanel">{{ news_list(anns) }}</div>
-          <div class="tab-pane fade" id="newsNotice" role="tabpanel">{{ news_list(notices) }}</div>
+<section class="mb-5">
+  <div class="d-flex justify-content-between align-items-end mb-3">
+    <h2 class="home-h2 mb-0" data-i18n="home.news">ข่าวสารและประชาสัมพันธ์</h2>
+    <a href="{{ url_for('public.news') }}" class="more-link"><span data-i18n="home.all">ดูข่าวทั้งหมด</span> <i class="bi bi-arrow-right"></i></a>
+  </div>
+  <div class="row g-4">
+    <div class="col-lg-6">
+      <div class="panel h-100">
+        {% if anns %}{% set f = anns[0] %}
+        <div class="feature">
+          <a class="feature-img" href="{{ url_for('public.news_detail', slug=f.slug) }}" tabindex="-1" aria-hidden="true">
+            {% if f.cover_path %}<img src="{{ url_for('announcements.cover', aid=f.id) }}" alt="">{% else %}<i class="bi bi-megaphone"></i>{% endif %}
+          </a>
+          <div class="feature-text">
+            <div class="feature-kicker">{{ cats.get(f.category_id, {}).get('name', 'ข่าว') }} · {{ f.publish_at|thaiday }}</div>
+            <h3 class="feature-title">{{ f.title }}</h3>
+            <p class="feature-excerpt">{{ (f.body or '')[:140] }}</p>
+            <a class="btn btn-sta btn-pill" href="{{ url_for('public.news_detail', slug=f.slug) }}">อ่านเพิ่มเติม <i class="bi bi-arrow-right"></i></a>
+          </div>
         </div>
+        {% if anns[1:] %}<div class="news-rows">{% for a in anns[1:5] %}{{ news_row(a) }}{% endfor %}</div>{% endif %}
+        {% else %}{{ m.empty('ยังไม่มีประกาศ') }}{% endif %}
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="panel h-100">
+        {% set first_event = team_events[0] if team_events else None %}
+        <div class="open-banner">
+          {% if first_event %}
+          <div class="open-date">{{ first_event.start_date|thaiday }}</div>
+          <div class="open-title">{{ first_event.title }}</div>
+          <div class="open-sub">กำลังเปิดรับสมัครทีมงานกิจกรรม</div>
+          <a class="stretched-link" href="{{ url_for('team.detail', eid=first_event.id) }}" aria-label="ดูรายละเอียด {{ first_event.title }}"></a>
+          {% elif rounds %}
+          <div class="open-date">ปิดรับ {{ rounds[0].close_at|thaiday }}</div>
+          <div class="open-title">{{ rounds[0].title }}</div>
+          <div class="open-sub">กำลังเปิดรับสมัครกรรมการ/อนุกรรมการ</div>
+          <a class="stretched-link" href="{{ url_for('recruit.detail', rid=rounds[0].id) }}" aria-label="ดูรายละเอียด {{ rounds[0].title }}"></a>
+          {% else %}
+          <div class="open-title">ยังไม่มีรายการเปิดรับสมัคร</div>
+          <div class="open-sub">ติดตามประกาศรับสมัครทีมงานและกรรมการได้ที่นี่</div>
+          {% endif %}
+        </div>
+        <h3 class="home-h3 mt-4 mb-2" data-i18n="home.open">กำลังเปิดรับสมัคร</h3>
+        <div class="open-rows">
+          {% for e in team_events[:4] %}
+          <a class="open-row" href="{{ url_for('team.detail', eid=e.id) }}"><span>{{ e.start_date|thaiday }} — {{ e.title }}</span><span class="badge text-bg-success">ทีมงานกิจกรรม</span></a>
+          {% endfor %}
+          {% for r in rounds[:3] %}
+          <a class="open-row" href="{{ url_for('recruit.detail', rid=r.id) }}"><span>ปิดรับ {{ r.close_at|thaiday }} — {{ r.title }}</span><span class="badge text-bg-warning">กรรมการ</span></a>
+          {% endfor %}
+          {% for p in open_positions[:3] %}
+          <a class="open-row" href="{{ url_for('activities.detail', aid=p.activity_id) }}"><span>ปิดรับ {{ p.close_at|thaiday }} — {{ p.name }}</span><span class="badge text-bg-success">ทีมงาน</span></a>
+          {% endfor %}
+          {% if not (team_events or rounds or open_positions) %}<div class="text-secondary small py-2">ไม่มีรายการในขณะนี้</div>{% endif %}
+        </div>
+        {% if notices %}
+        <h3 class="home-h3 mt-4 mb-2" data-i18n="home.notice">ประกาศ</h3>
+        <div class="news-rows news-rows-flat">{% for a in notices[:3] %}{{ news_row(a) }}{% endfor %}</div>
+        {% endif %}
       </div>
     </div>
   </div>
+</section>
 
-  <aside class="col-lg-4">
-    <h2 class="section-title mb-2" data-i18n="home.services">เมนูบริการ</h2>
-    <div class="card mb-3">
-      <div class="card-body">
-        <div class="service-grid">
-          {% for icon, key, label, link in [
-            ('bag', 'svc.order', 'สั่งสินค้า', url_for('public.coming_soon', key='shop')),
-            ('box-seam', 'svc.borrow', 'ยืม-คืน', url_for('equipment.catalog')),
-            ('pencil-square', 'svc.register', 'ลงทะเบียน', reg_url),
-            ('question-circle', 'svc.faq', 'คำถามที่พบบ่อย', url_for('public.faq')),
-            ('person-badge', 'svc.recruit', 'รับสมัครกรรมการ', url_for('recruit.index')),
-            ('people', 'svc.team', 'สมัครทีมงาน', url_for('team.index')),
-            ('chat-left-text', 'svc.ticket', 'คำร้อง', url_for('tickets.index')),
-            ('door-open', 'svc.rooms', 'จองใช้ห้อง', url_for('public.coming_soon', key='rooms'))] %}
-          <a class="service-btn" href="{{ link }}">
-            <span class="service-icon"><i class="bi bi-{{ icon }}"></i></span>
-            <span class="service-label" data-i18n="{{ key }}">{{ label }}</span>
-          </a>
-          {% endfor %}
-        </div>
-      </div>
-    </div>
-
-    {% if rounds or open_positions or team_events %}
-    <div class="card">
-      <div class="card-header" data-i18n="home.open">กำลังเปิดรับสมัคร</div>
-      <ul class="list-group list-group-flush">
-        {% for e in team_events[:5] %}
-        <li class="list-group-item"><a href="{{ url_for('team.detail', eid=e.id) }}">ทีมงานกิจกรรม: {{ e.title }}</a>
-          <div class="small text-secondary">จัดงาน {{ e.start_date|thaiday }}</div></li>
-        {% endfor %}
-        {% for r in rounds %}
-        <li class="list-group-item"><a href="{{ url_for('recruit.detail', rid=r.id) }}">{{ r.title }}</a>
-          <div class="small text-secondary">ปิดรับ {{ r.close_at|thaidate }}</div></li>
-        {% endfor %}
-        {% for p in open_positions[:5] %}
-        <li class="list-group-item"><a href="{{ url_for('activities.detail', aid=p.activity_id) }}">ทีมงาน: {{ p.name }}</a>
-          <div class="small text-secondary">ปิดรับ {{ p.close_at|thaidate }}</div></li>
-        {% endfor %}
-      </ul>
-    </div>
-    {% endif %}
-  </aside>
-</div>
+{% if gallery %}
+<section class="mb-4">
+  <div class="d-flex justify-content-between align-items-end mb-3">
+    <h2 class="home-h2 mb-0">ภาพกิจกรรมที่ผ่านมา</h2>
+    <a href="{{ url_for('public.news') }}" class="more-link">ดูทั้งหมด <i class="bi bi-arrow-right"></i></a>
+  </div>
+  <div class="gallery">
+    {% for a in gallery %}
+    <a class="gallery-item" href="{{ url_for('public.news_detail', slug=a.slug) }}">
+      <img src="{{ url_for('announcements.cover', aid=a.id) }}" alt="" loading="lazy">
+      <span class="gallery-cap">{{ a.title }}</span>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
 {% endblock %}

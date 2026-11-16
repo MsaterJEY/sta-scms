@@ -5,7 +5,7 @@ from ..db import repo
 from ..exports import dataset
 from ..rbac import can, current_user, permission_required
 from ..services import approval_state, audit, notify
-from ..storage import UploadError, load_bytes, mimetype_for, save_bytes, validate_upload
+from ..storage import UploadError, delete_file, load_bytes, mimetype_for, save_bytes, validate_upload
 from ..utils import form_dt, now_iso, slugify
 from .public import is_published
 
@@ -147,6 +147,74 @@ def publish_scheduled():
             _notify_publish(a)
             n += 1
     return n
+
+
+# ---------- Banner หน้าแรก ----------
+MAX_BANNERS = 8
+
+
+def _safe_link(url):
+    """ลิงก์ของ Banner: ภายในเว็บ (/...) หรือ https:// เท่านั้น"""
+    url = (url or "").strip()
+    return url if url.startswith("https://") or (url.startswith("/") and not url.startswith("//")) else ""
+
+
+@bp.route("/banners", methods=["GET", "POST"])
+@permission_required("admin.manage", "ann.manage")
+def banners():
+    from .public import banner_url, uploaded_banners
+    rows = uploaded_banners(only_active=False)
+    if request.method == "POST":
+        f = request.form
+        action = f.get("action")
+        b = repo().get("home_banners", f.get("banner_id")) if f.get("banner_id") else None
+        if action == "add":
+            files = [x for x in request.files.getlist("image") if x and x.filename]
+            if not files:
+                flash("กรุณาเลือกรูป", "danger")
+            elif len(rows) + len(files) > MAX_BANNERS:
+                flash(f"มี Banner ได้ไม่เกิน {MAX_BANNERS} รูป (ตอนนี้มี {len(rows)} รูป)", "danger")
+            else:
+                order = max([int(x.get("order") or 0) for x in rows] or [0])
+                for fs in files:
+                    try:
+                        data, ext, ctype = validate_upload(fs, images_only=True, allow_pdf=False)
+                    except UploadError as e:
+                        flash(f"{fs.filename}: {e}", "danger")
+                        continue
+                    order += 1
+                    bid = repo().add("home_banners", {
+                        "file_path": save_bytes("banners", data, ext, ctype), "title": f.get("title", "").strip()[:120],
+                        "link": _safe_link(f.get("link")), "order": order, "is_active": True,
+                        "created_by": current_user()["id"], "created_at": now_iso()})
+                    audit("banner.add", "home_banner", bid)
+                    flash(f"เพิ่ม Banner แล้ว: {fs.filename}", "success")
+        elif not b:
+            abort(404)
+        elif action == "save":
+            repo().update("home_banners", b["id"], {"title": f.get("title", "").strip()[:120], "link": _safe_link(f.get("link")),
+                                                    "is_active": bool(f.get("is_active"))})
+            audit("banner.update", "home_banner", b["id"])
+            flash("บันทึกแล้ว", "success")
+        elif action in ("up", "down"):
+            ids = [x["id"] for x in rows]
+            i = ids.index(b["id"])
+            k = i - 1 if action == "up" else i + 1
+            if 0 <= k < len(ids):
+                ids[i], ids[k] = ids[k], ids[i]
+                for n, bid in enumerate(ids, start=1):
+                    repo().update("home_banners", bid, {"order": n})
+        elif action == "delete":
+            delete_file(b["file_path"])
+            repo().delete("home_banners", b["id"])
+            audit("banner.delete", "home_banner", b["id"], old={"title": b.get("title")})
+            flash("ลบ Banner แล้ว", "info")
+        else:
+            abort(400)
+        return redirect(url_for("announcements.banners"))
+    for x in rows:
+        x["url"] = banner_url(x)
+    return render_template("ann/banners.html", rows=rows, max_banners=MAX_BANNERS)
 
 
 # ---------- FAQ (FAQ-01) ----------

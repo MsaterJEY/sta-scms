@@ -148,6 +148,7 @@
     'foot.uni': 'University Services', 'foot.uni1': 'University Website', 'foot.uni2': 'Education Service System',
     'foot.uni3': 'Academic Resources Office', 'foot.uni4': 'Student Development Division',
     'foot.club': 'Club Services', 'foot.faculty': 'Faculty',
+    'foot.copy2': '© Student Club, Faculty of Science Technology and Agriculture, Yala Rajabhat University',
     'foot.copy': 'Student Club Management System, Faculty of Science Technology and Agriculture, Yala Rajabhat University',
     'soon.text': 'This service is being prepared and will be available soon.', 'soon.back': 'Back to Home',
   };

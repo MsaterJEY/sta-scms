@@ -1,0 +1,73 @@
+{# แถบเมนูด้านข้างของหน้าผู้ใช้/ทีมงาน/ผู้ดูแล (ตามแบบ Student & Admin Portal) แสดงเฉพาะเมนูที่มีสิทธิ์ #}
+{% macro item(endpoint, icon, label, also=(), badge=None) %}
+{% set on = request.endpoint == endpoint or request.endpoint in also %}
+<a class="side-link {{ 'active' if on }}" href="{{ url_for(endpoint, **kwargs) }}" {% if on %}aria-current="page"{% endif %}>
+  <span class="side-ico"><i class="bi bi-{{ icon }}"></i></span><span class="side-label">{{ label }}</span>
+  {% if badge %}<span class="badge rounded-pill bg-danger ms-auto">{{ badge }}</span>{% endif %}
+</a>
+{% endmacro %}
+
+{% set staff_menu = staff_menu or can('admin.manage') %}
+{% set is_member = 'BOARD' in my_roles or 'COMM' in my_roles or 'SUBCOMM' in my_roles %}
+{% set line_on = config.LINE_CHANNEL_ACCESS_TOKEN and config.LINE_CHANNEL_SECRET %}
+<div class="offcanvas-lg offcanvas-start side" tabindex="-1" id="sideMenu" aria-label="เมนู">
+  <div class="offcanvas-header d-lg-none">
+    <span class="fw-bold">เมนู</span>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#sideMenu" aria-label="ปิด"></button>
+  </div>
+  <nav class="side-nav">
+    <div class="side-group">เมนูหลัก</div>
+    {{ item('dashboard.index', 'house', 'ภาพรวมของฉัน') }}
+    {{ item('auth.profile', 'person', 'ข้อมูลส่วนตัว') }}
+    {{ item('dashboard.notifications', 'bell', 'การแจ้งเตือน', badge=unread_count or None) }}
+    {% if line_on %}{{ item('line.settings', 'line', 'แจ้งเตือนทาง LINE') }}{% endif %}
+
+    <div class="side-group">บริการ</div>
+    {{ item('equipment.catalog', 'box-seam', 'ยืมอุปกรณ์', also=('equipment.model_detail', 'equipment.request_new')) }}
+    {% if not can('eqp.manage') %}{{ item('equipment.requests_list', 'clock-history', 'ประวัติการยืม-คืน', also=('equipment.request_detail',)) }}{% endif %}
+    {% if me.account_type == 'SCI' or can('tkt.handle') or can('tkt.view') or can('tkt.escalated') %}
+    {{ item('tickets.index', 'chat-left-text', 'คำร้อง/ร้องเรียน', also=('tickets.detail', 'tickets.new', 'tickets.stats')) }}{% endif %}
+    {{ item('team.index', 'people', 'สมัครทีมงานกิจกรรม', also=('team.detail',)) }}
+    {{ item('team.my', 'card-checklist', 'สถานะการสมัครทีมงาน') }}
+    {% if me.account_type == 'SCI' or can('rec.manage') or can('rec.score') or can('rec.approve') %}
+    {{ item('recruit.index', 'person-badge', 'รับสมัครกรรมการ', also=('recruit.detail', 'recruit.form', 'recruit.batch_view', 'recruit.batch_form', 'recruit.score')) }}{% endif %}
+    {% if me.account_type == 'SCI' %}{{ item('recruit.my', 'clipboard-check', 'ใบสมัครกรรมการของฉัน') }}{% endif %}
+    {% if activities_on %}{{ item('activities.index', 'calendar-event', 'กิจกรรมและทีมงาน') }}{% endif %}
+
+    {% if can('eqp.manage') %}
+    <div class="side-group">ฝ่ายอุปกรณ์</div>
+    {{ item('equipment.requests_list', 'inbox', 'คำขอยืม', also=('equipment.request_detail',)) }}
+    {{ item('equipment.manage', 'archive', 'ทะเบียนอุปกรณ์') }}
+    {{ item('equipment.maintenance', 'tools', 'ซ่อมบำรุง') }}
+    {{ item('equipment.fines', 'cash-coin', 'ค่าชดใช้') }}
+    {% endif %}
+
+    {% if staff_menu %}
+    <div class="side-group">งานสโมสร</div>
+    {% if can('rec.approve') or can('eqp.self_approve') %}{{ item('dashboard.approvals', 'check2-square', 'รายการรออนุมัติ') }}{% endif %}
+    {% if can('team.manage') or can('team.delete') %}{{ item('team.manage', 'people-fill', 'จัดการรับสมัครทีมงาน', also=('team.form', 'team.applicants')) }}{% endif %}
+    {% if can('ann.manage') or can('ann.draft') %}{{ item('announcements.manage', 'megaphone', 'จัดการประกาศ' if can('ann.manage') else 'ร่างประกาศ', also=('announcements.form',)) }}{% endif %}
+    {% if can('admin.manage') or can('ann.manage') %}{{ item('announcements.banners', 'images', 'Banner หน้าแรก') }}{% endif %}
+    {% if can('faq.manage') %}{{ item('announcements.faq_manage', 'question-circle', 'จัดการ FAQ') }}{% endif %}
+    {% if is_member or can('report.view') %}{{ item('documents.index', 'folder2-open', 'เอกสาร') }}{% endif %}
+    {% if can('report.view') or can('eqp.report') or can('rec.manage') %}{{ item('reports.index', 'bar-chart', 'รายงานและสถิติ') }}{% endif %}
+    {% if can('dashboard.advisor') %}{{ item('reports.advisor', 'speedometer2', 'Dashboard สรุป') }}{% endif %}
+    {% if activities_on and can('delegation.manage') %}{{ item('admin.delegations', 'key', 'มอบสิทธิ์คัดกรอง') }}{% endif %}
+    {% endif %}
+
+    {% if can('admin.manage') or can('admin.holders') or can('audit.view') %}
+    <div class="side-group">ผู้ดูแลระบบ</div>
+    {% if can('admin.manage') %}{{ item('admin.users', 'person-gear', 'บัญชีผู้ใช้', also=('admin.user_edit',)) }}{% endif %}
+    {% if can('admin.holders') %}{{ item('admin.holders', 'person-vcard', 'ผู้ถือตำแหน่งตามวาระ') }}{% endif %}
+    {% if can('admin.manage') %}
+    {{ item('admin.positions', 'diagram-3', 'กองและตำแหน่ง') }}
+    {{ item('admin.years', 'calendar3', 'ปีการศึกษา') }}
+    {{ item('admin.programs', 'mortarboard', 'ตารางสาขา') }}
+    {{ item('admin.permissions', 'shield-lock', 'สิทธิ์') }}
+    {{ item('admin.system_settings', 'gear', 'ตั้งค่าระบบ') }}
+    {% endif %}
+    {% if can('audit.view') %}{{ item('admin.audit_log', 'journal-text', 'Audit Log') }}{% endif %}
+    {% endif %}
+  </nav>
+  <div class="side-foot">STA YRU · STUDENT CLUB</div>
+</div>

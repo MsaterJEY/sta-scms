@@ -1,10 +1,12 @@
 """หน้าสาธารณะ (ANN-01, ANN-06, FAQ-02) ไม่ต้องล็อกอิน"""
+import hashlib
 import os
 
-from flask import Blueprint, abort, current_app, render_template, request
+from flask import abort, Blueprint, current_app, render_template, request, Response, url_for
 
 from ..db import repo
 from ..services import approval_state
+from ..storage import load_bytes, mimetype_for
 from ..utils import now, parse_dt
 from .team import open_events
 
@@ -43,14 +45,37 @@ COMING_SOON = {
 }
 
 
+def uploaded_banners(only_active=True):
+    rows = sorted(repo().all("home_banners"), key=lambda b: (int(b.get("order") or 0), b.get("created_at") or ""))
+    return [b for b in rows if b.get("is_active", True)] if only_active else rows
+
+
+def banner_url(b):
+    """URL รูปพร้อมรุ่น (v) ตามไฟล์ เพราะรูปถูกแคชที่เบราว์เซอร์"""
+    v = hashlib.md5((b.get("file_path") or "").encode()).hexdigest()[:8]
+    return url_for("public.banner", bid=b["id"], v=v)
+
+
 def home_banners():
-    """รูป Banner หน้าแรก: ทุกไฟล์รูปใน static/img/banners เรียงตามชื่อไฟล์"""
+    """รูป Banner หน้าแรก: รูปที่อัปโหลดในหน้าจัดการ Banner ถ้ายังไม่มีใช้รูปตั้งต้นใน static/img/banners"""
+    rows = uploaded_banners()
+    if rows:
+        return [{"url": banner_url(b), "title": b.get("title") or "", "link": b.get("link") or ""} for b in rows]
     folder = os.path.join(current_app.static_folder, "img", "banners")
     try:
         names = sorted(n for n in os.listdir(folder) if n.lower().endswith(BANNER_EXTS))
     except OSError:
         names = []
-    return ["img/banners/" + n for n in names]
+    return [{"url": url_for("static", filename="img/banners/" + n), "title": "", "link": "", "default": True} for n in names]
+
+
+@bp.route("/banner/<bid>")
+def banner(bid):
+    b = repo().get("home_banners", bid)
+    if not b or not b.get("file_path"):
+        abort(404)
+    return Response(load_bytes(b["file_path"]), mimetype=mimetype_for(b["file_path"]),
+                    headers={"Cache-Control": "public, max-age=86400"})
 
 
 @bp.route("/")
@@ -63,6 +88,7 @@ def home():
     open_positions = repo().where("activity_positions", status="OPEN") if current_app.config.get("ACTIVITIES_ENABLED") else []
     return render_template("public/home.html", anns=anns, notices=notices, cats=cats, rounds=rounds,
                            open_positions=open_positions, banners=home_banners(),
+                           gallery=[a for a in all_anns if a.get("cover_path")][:4],
                            team_events=open_events())
 
 

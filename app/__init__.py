@@ -50,6 +50,7 @@ def create_app(config_object=Config, **overrides):
             "unread_count": unread,
             "db_backend": app.config.get("DB_BACKEND"),
             "STATUS": STATUS_LABELS,
+            "footer_year": utils.now().year,
         }
 
     @app.errorhandler(403)

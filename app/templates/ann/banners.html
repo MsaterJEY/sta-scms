@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}Banner หน้าแรก{% endblock %}
+{% block content %}
+{% call m.page_header('Banner หน้าแรก', 'รูปที่หมุนแสดงในกรอบด้านขวาของหน้าแรก เรียงตามลำดับในหน้านี้') %}
+<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('public.home') }}" target="_blank">ดูหน้าแรก</a>
+{% endcall %}
+<div class="row g-3">
+<div class="col-lg-8">
+  {% if not rows %}<div class="alert alert-info small">ยังไม่มีรูปที่อัปโหลด หน้าแรกจึงแสดงรูปตั้งต้นของระบบ 3 รูป เมื่ออัปโหลดรูปแรก รูปตั้งต้นจะไม่แสดงอีก</div>{% endif %}
+  {% for b in rows %}
+  <div class="card mb-3"><div class="card-body">
+    <div class="row g-3 align-items-start">
+      <div class="col-sm-5"><img class="banner-thumb {{ 'banner-off' if not b.is_active }}" src="{{ b.url }}" alt="{{ b.title or 'Banner ' ~ loop.index }}"></div>
+      <div class="col-sm-7">
+        <form method="post">{{ m.csrf() }}<input type="hidden" name="banner_id" value="{{ b.id }}">
+          <label class="form-label small mb-1" for="bt{{ loop.index }}">คำอธิบายรูป (สำหรับผู้ใช้โปรแกรมอ่านหน้าจอ)</label>
+          <input class="form-control form-control-sm mb-2" id="bt{{ loop.index }}" name="title" maxlength="120" value="{{ b.title or '' }}">
+          <label class="form-label small mb-1" for="bl{{ loop.index }}">ลิงก์เมื่อกดรูป (ไม่บังคับ)</label>
+          <input class="form-control form-control-sm mb-2" id="bl{{ loop.index }}" name="link" value="{{ b.link or '' }}" placeholder="/news/... หรือ https://...">
+          <div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="is_active" id="ba{{ loop.index }}" {% if b.is_active %}checked{% endif %}><label class="form-check-label small" for="ba{{ loop.index }}">แสดงในหน้าแรก</label></div>
+          <div class="d-flex flex-wrap gap-2">
+            <button name="action" value="save" class="btn btn-sm btn-sta">บันทึก</button>
+            <button name="action" value="up" class="btn btn-sm btn-outline-secondary" {% if loop.first %}disabled{% endif %} aria-label="เลื่อนขึ้น"><i class="bi bi-arrow-up"></i></button>
+            <button name="action" value="down" class="btn btn-sm btn-outline-secondary" {% if loop.last %}disabled{% endif %} aria-label="เลื่อนลง"><i class="bi bi-arrow-down"></i></button>
+            <button name="action" value="delete" class="btn btn-sm btn-outline-danger ms-auto" data-confirm="ลบ Banner นี้? กู้คืนไม่ได้"><i class="bi bi-trash"></i> ลบ</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div></div>
+  {% endfor %}
+</div>
+<div class="col-lg-4"><div class="card"><div class="card-header">เพิ่ม Banner ({{ rows|length }}/{{ max_banners }})</div><div class="card-body">
+  {% if rows|length < max_banners %}
+  <form method="post" enctype="multipart/form-data">{{ m.csrf() }}<input type="hidden" name="action" value="add">
+    <label class="form-label" for="bi">รูปภาพ</label>
+    <input class="form-control mb-1" id="bi" type="file" name="image" accept="image/jpeg,image/png,image/webp" multiple data-max-files="{{ max_banners - rows|length }}" required>
+    <div class="form-text mb-2">JPG/PNG/WEBP ไม่เกิน {{ config.MAX_FILE_MB }} MB ต่อรูป (ระบบย่อให้อัตโนมัติ) — แนะนำสัดส่วน 16:10 เช่น 1600×1000 px จะเต็มกรอบพอดี</div>
+    <label class="form-label" for="bnt">คำอธิบายรูป</label><input class="form-control mb-2" id="bnt" name="title" maxlength="120" placeholder="เช่น งานรับน้อง 2569">
+    <label class="form-label" for="bnl">ลิงก์เมื่อกดรูป (ไม่บังคับ)</label><input class="form-control mb-3" id="bnl" name="link" placeholder="/news/... หรือ https://...">
+    <button class="btn btn-sta">อัปโหลด</button>
+  </form>
+  {% else %}<div class="text-secondary small">มีครบ {{ max_banners }} รูปแล้ว ลบรูปเดิมก่อนเพิ่มรูปใหม่</div>{% endif %}
+</div></div></div>
+</div>
+{% endblock %}
