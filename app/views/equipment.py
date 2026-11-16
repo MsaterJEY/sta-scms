@@ -95,6 +95,34 @@ def required_doc(user):
     return None
 
 
+EQP_DEFAULTS = {"max_loan_days": 7, "late_fine_per_item": 0.0, "late_fine_per_day": True}
+
+
+def eqp_settings():
+    """ค่าที่หัวหน้าฝ่ายอุปกรณ์กำหนด: ระยะเวลายืมสูงสุด และอัตราค่าปรับคืนล่าช้าต่อรายการ"""
+    doc = repo().get("system_settings", "equipment") or {}
+    return {k: doc.get(k, v) for k, v in EQP_DEFAULTS.items()}
+
+
+def late_days(r, at=None):
+    """จำนวนวันที่เกินกำหนดคืน (ปัดขึ้นเป็นวัน) 0 = ไม่เกิน"""
+    due = parse_dt(r.get("due_at"))
+    at = at or now()
+    if not due or at <= due:
+        return 0
+    return int((at - due).total_seconds() // 86400) + 1
+
+
+def late_fine_amount(r, lines, at=None):
+    """ค่าปรับคืนล่าช้า = อัตราต่อรายการ x จำนวนรายการ (x จำนวนวันที่เกิน ถ้าตั้งให้คิดรายวัน)"""
+    s = eqp_settings()
+    days = late_days(r, at)
+    rate = float(s["late_fine_per_item"] or 0)
+    if not days or not rate or not lines:
+        return 0.0, days
+    return rate * lines * (days if s["late_fine_per_day"] else 1), days
+
+
 def _can_borrow(user):
     if user.get("account_type") == "EXTERNAL" and not setting("allow_external_borrowers"):
         return False
@@ -116,7 +144,7 @@ def catalog():
         m["avail"] = available(m, start, end)
         m["cap"] = capacity(m)
     models.sort(key=lambda m: (m.get("category_id") or "", m.get("name") or ""))
-    return render_template("eqp/catalog.html", models=models, cats=cats, start=start, end=end, cat=cat)
+    return render_template("eqp/catalog.html", models=models, cats=cats, start=start, end=end, cat=cat, rules=eqp_settings())
 
 
 @bp.route("/image/<mid>")
@@ -186,15 +214,87 @@ def model_detail(mid):
                                                      "disposed_at": None, "disposal_reason": None})
                 audit("eqp.unit_add", "equipment_unit", uid, new={"tag": tag})
                 flash(f"เพิ่มรายชิ้น {tag} แล้ว", "success")
-        elif action == "delete" and not repo().where("equipment_request_items", model_id=mid):
-            repo().update("equipment_models", mid, {"is_active": False})
-            audit("eqp.model_deactivate", "equipment_model", mid)
-            flash("ปิดการใช้งานอุปกรณ์แล้ว", "info")
+        elif action == "delete_unit":
+            un = repo().get("equipment_units", request.form.get("unit_id"))
+            if not un or un.get("model_id") != mid:
+                abort(404)
+            used = any(un["id"] in (it.get("unit_ids") or []) for it in repo().where("equipment_request_items", model_id=mid))
+            if un.get("status") == "BORROWED" or used:
+                flash("รายชิ้นนี้เคยถูกยืมหรือกำลังถูกยืม ลบไม่ได้ (เปลี่ยนสถานะเป็นตัดจำหน่ายแทน)", "danger")
+            else:
+                repo().delete("equipment_units", un["id"])
+                audit("eqp.unit_delete", "equipment_unit", un["id"], old={"tag": un.get("asset_tag")})
+                flash(f"ลบรายชิ้น {un.get('asset_tag')} แล้ว", "info")
+        elif action == "delete":
+            if repo().where("equipment_request_items", model_id=mid):
+                # เคยถูกยืม: เก็บประวัติไว้ ปิดการใช้งานแทนการลบ
+                repo().update("equipment_models", mid, {"is_active": False})
+                audit("eqp.model_deactivate", "equipment_model", mid)
+                flash("อุปกรณ์นี้มีประวัติการยืม จึงปิดการใช้งานแทนการลบ (ไม่แสดงในแคตตาล็อกอีก)", "info")
+            else:
+                for un in repo().where("equipment_units", model_id=mid):
+                    repo().delete("equipment_units", un["id"])
+                if m.get("image_path"):
+                    delete_file(m["image_path"])
+                repo().delete("equipment_models", mid)
+                audit("eqp.model_delete", "equipment_model", mid, old={"code": m.get("code"), "name": m.get("name")})
+                flash("ลบอุปกรณ์แล้ว", "info")
+                return redirect(url_for("equipment.manage"))
         return redirect(url_for("equipment.model_detail", mid=mid))
+
     units = sorted(repo().where("equipment_units", model_id=mid), key=lambda u: u.get("asset_tag", ""))
     hist = sorted(repo().where("equipment_transactions", model_id=mid), key=lambda t: t.get("occurred_at", ""), reverse=True)[:50]
     cats = repo().all("equipment_categories")
     return render_template("eqp/model.html", mo=m, m_edit=m, units=units, hist=hist, cats=cats, cap=capacity(m))
+
+
+@bp.route("/settings", methods=["GET", "POST"])
+@permission_required("eqp.manage")
+def settings():
+    """หัวหน้าฝ่ายอุปกรณ์กำหนดระยะเวลายืมสูงสุด อัตราค่าปรับ และหมวดอุปกรณ์"""
+    if request.method == "POST":
+        f = request.form
+        action = f.get("action")
+        if action == "rules":
+            try:
+                days = int(f.get("max_loan_days") or 0)
+                rate = float(f.get("late_fine_per_item") or 0)
+            except ValueError:
+                days, rate = 0, -1
+            if not 1 <= days <= 365 or not 0 <= rate <= 100000:
+                flash("ระยะเวลายืมต้องอยู่ระหว่าง 1-365 วัน และค่าปรับต้องไม่ติดลบ", "danger")
+            else:
+                old = eqp_settings()
+                new = {"max_loan_days": days, "late_fine_per_item": rate, "late_fine_per_day": bool(f.get("late_fine_per_day"))}
+                repo().set("system_settings", "equipment", dict(new, updated_by=current_user()["id"], updated_at=now_iso()))
+                audit("eqp.settings_update", "system_settings", "equipment", old=old, new=new)
+                flash("บันทึกการตั้งค่าแล้ว ใช้กับคำขอยืมใหม่ทันที", "success")
+        elif action == "category":
+            name = f.get("name", "").strip()[:60]
+            cid = f.get("category_id")
+            if not name:
+                flash("กรุณาระบุชื่อหมวด", "danger")
+            elif cid:
+                repo().update("equipment_categories", cid, {"name": name})
+                flash("แก้ไขหมวดแล้ว", "success")
+            else:
+                repo().add("equipment_categories", {"name": name, "is_active": True})
+                flash("เพิ่มหมวดแล้ว", "success")
+            audit("eqp.category_save", "equipment_category", cid, new={"name": name})
+        elif action == "delete_category":
+            cid = f.get("category_id")
+            if repo().where("equipment_models", category_id=cid):
+                flash("หมวดนี้มีอุปกรณ์อยู่ ย้ายอุปกรณ์ไปหมวดอื่นก่อนลบ", "danger")
+            else:
+                repo().delete("equipment_categories", cid)
+                audit("eqp.category_delete", "equipment_category", cid)
+                flash("ลบหมวดแล้ว", "info")
+        else:
+            abort(400)
+        return redirect(url_for("equipment.settings"))
+    cats = sorted(repo().all("equipment_categories"), key=lambda c: c.get("name") or "")
+    counts = {c["id"]: len(repo().where("equipment_models", category_id=c["id"])) for c in cats}
+    return render_template("eqp/settings.html", s=eqp_settings(), cats=cats, counts=counts)
 
 
 # ---------- คำขอยืม (EQP-03..06, EQP-08) ----------
@@ -217,6 +317,10 @@ def request_new():
         if not start or not end or parse_dt(end) <= parse_dt(start):
             flash("วันยืม/วันคืนไม่ถูกต้อง", "danger")
             return redirect(url_for("equipment.request_new"))
+        max_days = int(eqp_settings()["max_loan_days"])
+        if parse_dt(end) - parse_dt(start) > timedelta(days=max_days):
+            flash(f"ยืมได้ไม่เกิน {max_days} วันต่อครั้ง กรุณาเลือกวันคืนใหม่", "danger")
+            return redirect(url_for("equipment.request_new", start=f.get("borrow_at"), end=f.get("due_at")))
         lines = []
         for m in models:
             q = int(f.get(f"qty_{m['id']}") or 0)
@@ -271,7 +375,8 @@ def request_new():
     end = form_dt(request.args.get("end")) or to_iso(parse_dt(start) + timedelta(days=1))
     for m in models:
         m["avail"] = available(m, start, end)
-    return render_template("eqp/request_form.html", models=models, doc_type=doc_type, blocks=borrow_blocks(u),
+    return render_template("eqp/request_form.html", models=models, doc_type=doc_type, blocks=borrow_blocks(u), rules=eqp_settings(),
+                           too_long=parse_dt(end) - parse_dt(start) > timedelta(days=int(eqp_settings()["max_loan_days"])),
                            start=start, end=end, preselect=request.args.get("model"))
 
 
@@ -334,7 +439,7 @@ def request_detail(rid):
                            txs=txs, req_state=req_state, requester=requester, manage=manage,
                            self_approver=can("eqp.self_approve") and r.get("is_self_request"),
                            overdue=is_overdue(r), event_name=r.get("event_name") or (repo().get("activities", r.get("activity_id")) or {}).get("title"),
-                           show_contact=manage or r["requester_id"] == u["id"],
+                           show_contact=manage or r["requester_id"] == u["id"], rules=eqp_settings(), late=late_days(r) if r.get("status") in OUT_REQ else 0,
                            default_fine=sum(int(it.get("qty_lost") or 0) * float(models.get(it["model_id"], {}).get("replacement_cost") or 0)
                                             for it in items))
 
@@ -436,6 +541,7 @@ def request_action(rid):
         # EQP-10 รับคืน (รองรับคืนบางส่วน) บันทึกสภาพ ชำรุด สูญหาย
         if not manage or r["status"] not in OUT_REQ:
             abort(403)
+        before = {it["id"]: outstanding(it) for it in items}
         for it in items:
             m = repo().get("equipment_models", it["model_id"])
             if m.get("is_serialized"):
@@ -483,6 +589,20 @@ def request_action(rid):
         items = items_of(rid)
         done = all(outstanding(it) == 0 for it in items)
         repo().update("equipment_requests", rid, {"status": "RETURNED" if done else "PARTIAL_RETURNED"})
+        # ค่าปรับคืนล่าช้า: คิดตามจำนวนรายการที่รับคืนในครั้งนี้หลังเลยกำหนด
+        lines = sum(1 for it in items if outstanding(it) < before.get(it["id"], 0))
+        amount, days = late_fine_amount(r, lines)
+        if amount > 0:
+            per_day = eqp_settings()["late_fine_per_day"]
+            note = (f"คืนล่าช้า {days} วัน · {lines} รายการ × {eqp_settings()['late_fine_per_item']:,.2f} บาท"
+                    + (f" × {days} วัน" if per_day else "") + " (คำนวณอัตโนมัติ)")
+            fid = repo().add("equipment_fines", {"request_id": rid, "user_id": r["requester_id"], "type": "LATE", "amount": amount,
+                                                 "status": "PENDING", "recorded_by": u["id"], "created_at": now_iso(),
+                                                 "settled_at": None, "note": note, "auto": True})
+            notify(r["requester_id"], "มีค่าปรับคืนอุปกรณ์ล่าช้า", f"{amount:,.2f} บาท ชำระหน้างานที่ฝ่ายอุปกรณ์",
+                   url_for("equipment.request_detail", rid=rid))
+            audit("eqp.fine_auto_late", "equipment_fine", fid, new={"amount": amount, "days": days, "lines": lines})
+            flash(f"คืนล่าช้า {days} วัน ระบบบันทึกค่าปรับ {amount:,.2f} บาทให้แล้ว (แก้ไขหรือยกเว้นได้ที่ส่วนค่าชดใช้)", "warning")
         if done and r.get("is_self_request"):
             notify_role("ADMIN_VP", "รอยืนยันรับคืน (หัวหน้าฝ่ายอุปกรณ์ยืมเอง)", "", url_for("equipment.request_detail", rid=rid))
         audit("eqp.return", "equipment_request", rid)

@@ -9,7 +9,8 @@
   <div class="card mb-3"><div class="card-header">รายชิ้น ({{ units|length }})</div><div class="table-responsive"><table class="table table-sm mb-0">
     <thead><tr><th>รหัสครุภัณฑ์</th><th>สภาพ</th><th>สถานะ</th><th>ที่เก็บ</th><th>QR</th></tr></thead><tbody>
     {% for u in units %}<tr><td><code>{{ u.asset_tag }}</code></td><td class="small">{{ u.condition }}</td><td>{{ m.badge(u.status) }}</td><td class="small">{{ u.location }}</td>
-      <td><button class="btn btn-sm btn-outline-secondary" type="button" onclick="showQR('{{ u.asset_tag }}')"><i class="bi bi-qr-code"></i></button></td></tr>
+      <td class="text-nowrap"><button class="btn btn-sm btn-outline-secondary" type="button" onclick="showQR('{{ u.asset_tag }}')" aria-label="QR"><i class="bi bi-qr-code"></i></button>
+        {% if u.status != 'BORROWED' %}<form method="post" class="d-inline" data-confirm="ลบรายชิ้น {{ u.asset_tag }}?">{{ m.csrf() }}<input type="hidden" name="action" value="delete_unit"><input type="hidden" name="unit_id" value="{{ u.id }}"><button class="btn btn-sm btn-outline-danger" aria-label="ลบรายชิ้น"><i class="bi bi-trash"></i></button></form>{% endif %}</td></tr>
     {% else %}<tr><td colspan="5">{{ m.empty() }}</td></tr>{% endfor %}</tbody></table></div>
     <div class="card-body border-top"><form method="post" class="row g-2">{{ m.csrf() }}<input type="hidden" name="action" value="add_unit">
       <div class="col-md-4"><input class="form-control form-control-sm" name="asset_tag" placeholder="รหัสครุภัณฑ์ (ว่าง = สร้างให้)"></div>
@@ -23,7 +24,8 @@
 </div>
 <div class="col-lg-4">
   <div class="card mb-3"><div class="card-header">แก้ไขข้อมูล</div><div class="card-body">{% include "eqp/_model_form.html" %}</div></div>
-  <form method="post" data-confirm="ปิดการใช้งานอุปกรณ์นี้?">{{ m.csrf() }}<input type="hidden" name="action" value="delete"><button class="btn btn-sm btn-outline-danger w-100">ลบ/ปิดการใช้งาน (เฉพาะที่ยังไม่เคยถูกยืม)</button></form>
+  <form method="post" data-confirm="ลบอุปกรณ์นี้? ถ้าเคยถูกยืม ระบบจะปิดการใช้งานแทนเพื่อเก็บประวัติ">{{ m.csrf() }}<input type="hidden" name="action" value="delete"><button class="btn btn-sm btn-outline-danger w-100"><i class="bi bi-trash"></i> ลบอุปกรณ์</button></form>
+  <div class="form-text">อุปกรณ์ที่ไม่เคยถูกยืมจะถูกลบถาวร ส่วนที่มีประวัติการยืมจะถูกปิดการใช้งานและไม่แสดงในแคตตาล็อก</div>
 </div></div>
 <div class="modal fade" id="qrModal" tabindex="-1"><div class="modal-dialog modal-sm modal-dialog-centered"><div class="modal-content"><div class="modal-body text-center"><div id="qrBox" class="d-inline-block"></div><div id="qrTag" class="mt-2 fw-semibold"></div></div></div></div></div>
 {% endblock %}

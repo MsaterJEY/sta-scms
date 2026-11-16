@@ -4,6 +4,7 @@
 {% block content %}
 {% call m.page_header('ส่งคำขอยืมอุปกรณ์') %}{% endcall %}
 {% if blocks %}<div class="alert alert-danger">ส่งคำขอใหม่ไม่ได้: {{ blocks|join(' · ') }}</div>{% endif %}
+<div class="alert alert-{{ 'danger' if too_long else 'secondary' }} small py-2"><i class="bi bi-info-circle me-1"></i>ยืมได้ไม่เกิน <strong>{{ rules.max_loan_days }} วัน</strong>ต่อครั้ง{% if too_long %} — ช่วงเวลาที่เลือกเกินกำหนด กรุณาเลือกวันคืนใหม่{% endif %}{% if rules.late_fine_per_item %} · คืนล่าช้าปรับ <strong>{{ '{:,.0f}'.format(rules.late_fine_per_item) }} บาท</strong>ต่อรายการ{{ 'ต่อวัน' if rules.late_fine_per_day }}{% endif %}</div>
 <form method="get" class="row g-2 mb-3">
   <div class="col-6 col-md-4"><label class="form-label small mb-0">วันยืม</label><input class="form-control" type="datetime-local" name="start" value="{{ start|inputdt }}"></div>
   <div class="col-6 col-md-4"><label class="form-label small mb-0">วันคืน</label><input class="form-control" type="datetime-local" name="end" value="{{ end|inputdt }}"></div>
@@ -26,6 +27,6 @@
     {% endif %}
     <div class="form-check"><input class="form-check-input" type="checkbox" name="consent" id="cs" required><label class="form-check-label small" for="cs">ยินยอมให้เก็บข้อมูลและเอกสารเพื่อการยืมอุปกรณ์ และยอมรับเงื่อนไขค่าชดใช้กรณีชำรุด/สูญหาย/คืนล่าช้า</label></div>
   </div></div>
-  <button class="btn btn-sta" {% if blocks %}disabled{% endif %}>ส่งคำขอ</button>
+  <button class="btn btn-sta" {% if blocks or too_long %}disabled{% endif %}>ส่งคำขอ</button>
 </form>
 {% endblock %}

@@ -6,6 +6,7 @@
 <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('equipment.requests_list', mine=1) }}">คำขอของฉัน</a>
 <a class="btn btn-sm btn-sta" href="{{ url_for('equipment.request_new', start=start|inputdt, end=end|inputdt) }}"><i class="bi bi-cart-plus"></i> ส่งคำขอยืม</a>
 {% endcall %}
+<div class="alert alert-secondary small py-2"><i class="bi bi-info-circle me-1"></i>ยืมได้ไม่เกิน <strong>{{ rules.max_loan_days }} วัน</strong>ต่อครั้ง{% if rules.late_fine_per_item %} · คืนล่าช้าปรับ <strong>{{ '{:,.0f}'.format(rules.late_fine_per_item) }} บาท</strong>ต่อรายการ{{ 'ต่อวัน' if rules.late_fine_per_day }}{% endif %}</div>
 <form class="row g-2 mb-3">
   <div class="col-6 col-md-3"><label class="form-label small mb-0">วันยืม</label><input class="form-control" type="datetime-local" name="start" value="{{ start|inputdt }}"></div>
   <div class="col-6 col-md-3"><label class="form-label small mb-0">วันคืน</label><input class="form-control" type="datetime-local" name="end" value="{{ end|inputdt }}"></div>

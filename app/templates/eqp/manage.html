@@ -2,7 +2,7 @@
 {% import "macros.html" as m with context %}
 {% block title %}ทะเบียนอุปกรณ์{% endblock %}
 {% block content %}
-{% call m.page_header('ทะเบียนอุปกรณ์', 'เพิ่ม/ลบ/แก้ไขได้เฉพาะหัวหน้าฝ่ายอุปกรณ์และสถานที่') %}{{ m.export_buttons('equipment_models') }}{% endcall %}
+{% call m.page_header('ทะเบียนอุปกรณ์', 'เพิ่ม/ลบ/แก้ไขได้เฉพาะหัวหน้าฝ่ายอุปกรณ์และสถานที่') %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('equipment.settings') }}"><i class="bi bi-gear"></i> ตั้งค่าการยืม-คืน</a>{{ m.export_buttons('equipment_models') }}{% endcall %}
 <div class="row g-3">
 <div class="col-lg-8"><div class="card"><div class="table-responsive"><table class="table table-sm mb-0">
   <thead><tr><th>รหัส</th><th>ชื่อ</th><th>หมวด</th><th>ประเภท</th><th>ใช้งานได้</th><th>ราคาทดแทน</th><th></th></tr></thead><tbody>

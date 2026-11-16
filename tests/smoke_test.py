@@ -324,6 +324,59 @@ with app.app_context():
     for ds in ("equipment_models", "equipment_requests", "equipment_fines"):
         check(eqh.get(f"/export/{ds}?fmt=xlsx").status_code == 200, f"export {ds}")
 
+    print("== equipment rules set by EQUIP_HEAD")
+    get_ok(eqh, "/equipment/settings")
+    check(stu.get("/equipment/settings").status_code == 403 and admin.get("/equipment/settings").status_code == 403
+          and avp.post("/equipment/settings", data={"action": "rules", "max_loan_days": 30}).status_code == 403,
+          "only EQUIP_HEAD sets loan rules (not even SYS_ADMIN)")
+    eqh.post("/equipment/settings", data={"action": "rules", "max_loan_days": 0, "late_fine_per_item": 20})
+    check(not repo().get("system_settings", "equipment"), "invalid loan rules rejected")
+    eqh.post("/equipment/settings", data={"action": "rules", "max_loan_days": 3, "late_fine_per_item": 20, "late_fine_per_day": "1"})
+    es = repo().get("system_settings", "equipment")
+    check(es["max_loan_days"] == 3 and es["late_fine_per_item"] == 20 and es["late_fine_per_day"], "EQUIP_HEAD saves loan rules")
+    cat_html = stu.get("/equipment/").get_data(as_text=True)
+    check("ไม่เกิน <strong>3 วัน</strong>" in cat_html and "20 บาท" in cat_html, "borrowers see the rules in the catalog")
+    n_req = len(repo().all("equipment_requests"))
+    psec.post("/equipment/request/new", data={"borrow_at": dt(1), "due_at": dt(6), "purpose": "ยาวเกิน", "consent": "1", f"qty_{chr_['id']}": 1})
+    check(len(repo().all("equipment_requests")) == n_req, "loan longer than the maximum is refused")
+    psec.post("/equipment/request/new", data={"borrow_at": dt(1), "due_at": dt(3), "purpose": "ทดสอบค่าปรับ", "consent": "1",
+                                               f"qty_{chr_['id']}": 2})
+    lr = [x for x in repo().all("equipment_requests") if x.get("purpose") == "ทดสอบค่าปรับ"][0]
+    check(lr["status"] == "PENDING", "loan within the maximum is accepted")
+    li = repo().where("equipment_request_items", request_id=lr["id"])[0]
+    eqh.post(f"/equipment/request/{lr['id']}/action", data={"action": "approve", f"qty_{li['id']}": 2})
+    eqh.post(f"/equipment/request/{lr['id']}/action", data={"action": "issue", "receiver_name": "x", "id_checked": "1"})
+    check(repo().get("equipment_requests", lr["id"])["status"] == "ISSUED", "loan issued")
+    from app.utils import to_iso as _to_iso
+    repo().update("equipment_requests", lr["id"], {"due_at": _to_iso(now() - timedelta(days=2, hours=1))})
+    eqh.post(f"/equipment/request/{lr['id']}/action", data={"action": "return", f"ret_{li['id']}": 2})
+    lf = repo().where("equipment_fines", request_id=lr["id"])
+    check(len(lf) == 1 and lf[0]["type"] == "LATE" and lf[0]["amount"] == 60 and lf[0]["status"] == "PENDING",
+          "late return auto-records fine: 1 item x 20 baht x 3 days")
+    eqh.post(f"/equipment/fine/{lf[0]['id']}", data={"status": "PAID"})
+    eqh.post(f"/equipment/request/{lr['id']}/action", data={"action": "close"})
+    check(repo().get("equipment_requests", lr["id"])["status"] == "CLOSED", "loan closes after the fine is settled")
+    # ลบอุปกรณ์/รายชิ้น/หมวด
+    eqh.post("/equipment/settings", data={"action": "category", "name": "หมวดทดสอบ"})
+    tc = repo().where("equipment_categories", name="หมวดทดสอบ")[0]
+    eqh.post("/equipment/manage", data={"category_id": tc["id"], "code": "TMP", "name": "ของชั่วคราว", "is_serialized": "1", "is_active": "1"})
+    tmp_m = repo().where("equipment_models", code="TMP")[0]
+    eqh.post("/equipment/settings", data={"action": "delete_category", "category_id": tc["id"]})
+    check(repo().get("equipment_categories", tc["id"]), "category with equipment cannot be deleted")
+    eqh.post(f"/equipment/model/{tmp_m['id']}", data={"action": "add_unit", "asset_tag": "TMP-1"})
+    tu = repo().where("equipment_units", asset_tag="TMP-1")[0]
+    check(stu.post(f"/equipment/model/{tmp_m['id']}", data={"action": "delete"}).status_code == 403, "others cannot delete equipment")
+    eqh.post(f"/equipment/model/{tmp_m['id']}", data={"action": "delete_unit", "unit_id": tu["id"]})
+    check(not repo().get("equipment_units", tu["id"]), "EQUIP_HEAD deletes an unused unit")
+    eqh.post(f"/equipment/model/{tmp_m['id']}", data={"action": "delete"})
+    check(not repo().get("equipment_models", tmp_m["id"]), "never-borrowed equipment is deleted for real")
+    eqh.post(f"/equipment/model/{chr_['id']}", data={"action": "delete"})
+    check(repo().get("equipment_models", chr_["id"])["is_active"] is False, "borrowed equipment is deactivated, history kept")
+    repo().update("equipment_models", chr_["id"], {"is_active": True})
+    eqh.post("/equipment/settings", data={"action": "delete_category", "category_id": tc["id"]})
+    check(not repo().get("equipment_categories", tc["id"]), "empty category deleted")
+    eqh.post("/equipment/settings", data={"action": "rules", "max_loan_days": 7, "late_fine_per_item": 0})
+
     print("== tickets (TKT)")
     get_ok(stu, "/tickets/new")
     stu.post("/tickets/new", data={"category_id": "GENERAL", "title": "แอร์เสีย", "detail": "ห้อง 201"})

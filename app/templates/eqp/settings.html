@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}ตั้งค่าการยืม-คืน{% endblock %}
+{% block content %}
+{% call m.page_header('ตั้งค่าการยืม-คืนอุปกรณ์', 'กำหนดได้เฉพาะหัวหน้าฝ่ายอุปกรณ์และสถานที่') %}
+<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('equipment.manage') }}">ทะเบียนอุปกรณ์</a>
+{% endcall %}
+<div class="row g-3">
+<div class="col-lg-6"><div class="card"><div class="card-header">กติกาการยืม</div><div class="card-body">
+  <form method="post">{{ m.csrf() }}<input type="hidden" name="action" value="rules">
+    <label class="form-label" for="ed">ระยะเวลายืมสูงสุดต่อครั้ง (วัน)</label>
+    <input class="form-control mb-1" id="ed" type="number" name="max_loan_days" min="1" max="365" required value="{{ s.max_loan_days }}">
+    <div class="form-text mb-3">ผู้ยืมเลือกวันคืนเกินจำนวนวันนี้ไม่ได้ คำขอที่ส่งไปแล้วไม่ถูกกระทบ</div>
+    <label class="form-label" for="ef">อัตราค่าปรับคืนล่าช้า ต่อรายการ (บาท)</label>
+    <input class="form-control mb-1" id="ef" type="number" name="late_fine_per_item" min="0" step="0.01" required value="{{ s.late_fine_per_item }}">
+    <div class="form-text mb-2">"รายการ" คืออุปกรณ์แต่ละชนิดในคำขอ ไม่ใช่จำนวนชิ้น · ใส่ 0 = ไม่คิดค่าปรับคืนล่าช้า</div>
+    <div class="form-check mb-3"><input class="form-check-input" type="checkbox" name="late_fine_per_day" id="ep" {% if s.late_fine_per_day %}checked{% endif %}>
+      <label class="form-check-label" for="ep">คิดต่อวันที่เกินกำหนด (ไม่ติ๊ก = คิดครั้งเดียวต่อรายการ ไม่ว่าเกินกี่วัน)</label></div>
+    <div class="alert alert-secondary small">ตัวอย่าง: ยืม 2 รายการ คืนช้า 3 วัน =
+      <strong>{{ '{:,.2f}'.format(s.late_fine_per_item * 2 * (3 if s.late_fine_per_day else 1)) }} บาท</strong>
+      · ระบบบันทึกค่าปรับให้อัตโนมัติตอนรับคืน และคุณแก้ไขหรือยกเว้นได้</div>
+    <button class="btn btn-sta">บันทึก</button>
+  </form></div></div></div>
+<div class="col-lg-6"><div class="card"><div class="card-header">หมวดอุปกรณ์</div>
+  <ul class="list-group list-group-flush">
+    {% for c in cats %}
+    <li class="list-group-item"><form method="post" class="d-flex gap-2 align-items-center">{{ m.csrf() }}<input type="hidden" name="category_id" value="{{ c.id }}">
+      <input class="form-control form-control-sm" name="name" value="{{ c.name }}" maxlength="60" aria-label="ชื่อหมวด" required>
+      <span class="small text-secondary text-nowrap">{{ counts[c.id] }} รายการ</span>
+      <button name="action" value="category" class="btn btn-sm btn-outline-secondary">บันทึก</button>
+      <button name="action" value="delete_category" class="btn btn-sm btn-outline-danger" {% if counts[c.id] %}disabled title="มีอุปกรณ์ในหมวดนี้"{% endif %} data-confirm="ลบหมวด {{ c.name }}?" aria-label="ลบหมวด"><i class="bi bi-trash"></i></button>
+    </form></li>
+    {% else %}<li class="list-group-item small text-secondary">ยังไม่มีหมวด</li>{% endfor %}
+  </ul>
+  <div class="card-body"><form method="post" class="d-flex gap-2">{{ m.csrf() }}<input type="hidden" name="action" value="category">
+    <input class="form-control form-control-sm" name="name" maxlength="60" placeholder="ชื่อหมวดใหม่" required><button class="btn btn-sm btn-sta text-nowrap">เพิ่มหมวด</button></form></div>
+</div></div>
+</div>
+{% endblock %}
