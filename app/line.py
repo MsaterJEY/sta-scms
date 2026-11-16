@@ -23,9 +23,11 @@ API = "https://api.line.me/v2/bot"
 # event_type: (ชื่อในหน้าตั้งค่า, ข้อความที่ส่ง)
 EVENTS = {
     "APPROVAL": ("รายการรออนุมัติ (สรุปวันละครั้ง)", "คุณมีรายการรออนุมัติ {count} รายการ"),
-    "EQP_DECISION": ("คำขอยืมอุปกรณ์ได้รับการพิจารณา", "คำขอยืมอุปกรณ์ของคุณได้รับการพิจารณาแล้ว"),
+    # ใช้กับทุกรายการของการยืม-คืน (คำขอ อนุมัติ จ่าย รูป รับคืน ค่าปรับ ข้อความ การชำระ) ข้อความจริงส่งมาจากผู้เรียก
+    "EQP_DECISION": ("ทุกรายการยืม-คืนอุปกรณ์ (คำขอ อนุมัติ จ่าย-คืน ค่าปรับ ข้อความจากฝ่ายอุปกรณ์)", "มีความเคลื่อนไหวในรายการยืม-คืนอุปกรณ์ของคุณ"),
     "EQP_DUE": ("ใกล้ครบ/เกินกำหนดคืนอุปกรณ์", "มีอุปกรณ์ที่ใกล้ครบกำหนดหรือเกินกำหนดคืน"),
     "RECRUIT": ("นัดสัมภาษณ์/ผลคัดเลือกกรรมการ", "มีความคืบหน้าการสมัครกรรมการ/อนุกรรมการของคุณ"),
+    "TEAM": ("สมัครทีมงานกิจกรรม (ยืนยันการสมัคร และผลการพิจารณา)", "มีความเคลื่อนไหวในการสมัครทีมงานกิจกรรมของคุณ"),
     "TICKET_REPLY": ("คำร้องมีผู้ตอบ (ไม่รวมเรื่องนิรนาม)", "คำร้องของคุณมีการตอบกลับ"),
 }
 CODE_MINUTES = 10
@@ -121,7 +123,7 @@ def _log(user_id, event, channel, status, error=None):
                                            "error": error, "sent_at": now_iso()})
 
 
-def deliver(user_id, event, link=None, count=None):
+def deliver(user_id, event, link=None, count=None, text=None):
     """ส่ง LINE ให้ผู้ใช้ที่เลือกรับเหตุการณ์นี้ คืน None (ไม่ได้เลือกรับ) / "SENT" / "FAILED"
 
     FAILED = ผู้ใช้เลือกรับทาง LINE แต่ส่งไม่ได้ (บล็อก OA โควตาหมด เครือข่ายล่ม) ผู้เรียกใช้อีเมลแทน (NTF-05)
@@ -131,7 +133,7 @@ def deliver(user_id, event, link=None, count=None):
     if quota_state().get("blocked"):
         _log(user_id, event, "LINE", "FAILED", "quota")
         return "FAILED"
-    text = EVENTS[event][1].format(count=count or 1)
+    text = (text or EVENTS[event][1].format(count=count or 1))[:300]
     site = (current_app.config.get("SITE_URL") or "").rstrip("/")
     if site and link and link.startswith("/"):
         text += f"\nดูรายละเอียด: {site}{link}"

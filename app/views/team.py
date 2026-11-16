@@ -296,6 +296,10 @@ def apply(pid):
         flash(lost, "danger")
         return back
     audit("team.apply", "team_application", aid)
+    # ยืนยันการทำรายการกลับไปยังผู้สมัครทุกครั้ง (ในระบบ + LINE ถ้าผูกบัญชีและเปิดรับไว้)
+    done = f"สมัครทีมงานสำเร็จ: {ev.get('title')}"
+    notify(u["id"], done, f"ตำแหน่ง {pos.get('name')} · รอผลการพิจารณา", url_for("team.my"), event="TEAM",
+           line_text=f"{done} · ตำแหน่ง {pos.get('name')} · รอผลการพิจารณา")
     flash(f"สมัครสำเร็จ: {pos.get('name')} — รอผลการพิจารณา", "success")
     return redirect(url_for("team.my"))
 
@@ -638,7 +642,8 @@ def application_status(aid):
             linked = activities_on() and action == "APPROVED" and ev.get("activity_id")
             notify(a["user_id"], f"ผลการสมัครทีมงาน {ev.get('title')}",
                    APP_STATUS[action][0] + (" — เช็กชื่อและดูชั่วโมงได้ที่หน้ากิจกรรม" if linked else ""),
-                   url_for("activities.detail", aid=ev["activity_id"]) if linked else url_for("team.my"))
+                   url_for("activities.detail", aid=ev["activity_id"]) if linked else url_for("team.my"), event="TEAM",
+                   line_text=f"ผลการสมัครทีมงาน {ev.get('title')}: {APP_STATUS[action][0]}")
     else:
         abort(400)
     return redirect(request.referrer or url_for("team.applicants", eid=ev["id"]))

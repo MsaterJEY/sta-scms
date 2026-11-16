@@ -482,3 +482,8 @@ a { text-underline-offset: .15em; }
 .org-thumb { width: 2.5rem; height: 2.5rem; border-radius: 50%; overflow: hidden; background: var(--sta-soft); color: var(--sta-secondary); display: inline-flex; align-items: center; justify-content: center; }
 .org-thumb-lg { width: 4.5rem; height: 4.5rem; font-size: 1.6rem; }
 @media (max-width: 576px) { .org-grid { grid-template-columns: repeat(2, 1fr); gap: .7rem; } .org-grid-center .org-card { width: calc(50% - .5rem); } .org-card-lg { width: 100% !important; max-width: 16rem; } .org-photo { width: 5rem; height: 5rem; } }
+
+/* ยืม-คืน: รูปหลักฐานและการชำระ */
+.eqp-photo { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: .7rem; border: 1px solid var(--sta-border); background: #DCE9DF; }
+.eqp-qr { display: block; width: 11rem; max-width: 100%; border-radius: .7rem; border: 1px solid var(--sta-border); background: #fff; }
+.eqp-pay { background: #F5F9F6; border: 1px solid #E6EEE8; border-radius: .85rem; padding: .9rem; }

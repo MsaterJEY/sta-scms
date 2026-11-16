@@ -243,6 +243,12 @@ with app.app_context():
     check(acvp.get(f"/export/activity_staff?fmt=tsv&activity_id={act['id']}").status_code == 200, "staff export")
 
     print("== equipment (EQP)")
+
+    def snap(client, rid, stage):
+        """ผู้ยืมถ่ายรูปก่อนยืม/ตอนคืน"""
+        return client.post(f"/equipment/request/{rid}/action", content_type="multipart/form-data",
+                           data={"action": "photo", "stage": stage, "photos": (io.BytesIO(b"\xff\xd8\xff\xe0" + b"p" * 120), "p.jpg")})
+
     eqh.post("/equipment/manage", data={"category_id": "AV", "code": "SPK", "name": "ลำโพง", "is_serialized": "1",
                                         "replacement_cost": 5000, "is_active": "1"})
     eqh.post("/equipment/manage", data={"category_id": "TENT", "code": "CHR", "name": "เก้าอี้", "quantity_total": 50,
@@ -256,18 +262,20 @@ with app.app_context():
     check(avp.post("/equipment/manage", data={"code": "X", "name": "x"}).status_code == 403, "ADMIN_VP cannot manage equipment")
     get_ok(stu, "/equipment/", "catalog")
     get_ok(stu, f"/equipment/request/new?start={dt(1)}&end={dt(2)}", "request form")
-    stu.post("/equipment/request/new", data={"borrow_at": dt(1), "due_at": dt(2), "purpose": "งาน", f"qty_{spk['id']}": 1,
+    stu.post("/equipment/request/new", content_type="multipart/form-data", data={"photos": (io.BytesIO(b"\xff\xd8\xff\xe0" + b"p" * 120), "p.jpg"), "borrow_at": dt(1), "due_at": dt(2), "purpose": "งาน", f"qty_{spk['id']}": 1,
                                              f"qty_{chr_['id']}": 10, "consent": "1"})
     req = repo().where("equipment_requests", requester_id=repo().where("users", student_code="406865010")[0]["id"])[0]
     check(req["status"] == "PENDING" and not req["is_self_request"], "request created")
-    stu.post("/equipment/request/new", data={"borrow_at": dt(1), "due_at": dt(2), "purpose": "x", f"qty_{chr_['id']}": 60, "consent": "1"})
+    check(len(repo().where("equipment_photos", request_id=req["id"], stage="PICKUP")) == 1, "photo of the items is saved with the request")
+    stu.post("/equipment/request/new", data={"borrow_at": dt(1), "due_at": dt(2), "purpose": "ไม่มีรูป", f"qty_{chr_['id']}": 1, "consent": "1"})
+    check(len(repo().all("equipment_requests")) == 1, "request without item photos is refused")
+    stu.post("/equipment/request/new", content_type="multipart/form-data", data={"photos": (io.BytesIO(b"\xff\xd8\xff\xe0" + b"p" * 120), "p.jpg"), "borrow_at": dt(1), "due_at": dt(2), "purpose": "x", f"qty_{chr_['id']}": 60, "consent": "1"})
     check(len(repo().all("equipment_requests")) == 1, "over-availability request rejected")
-    other.post("/equipment/request/new", data={"borrow_at": dt(1), "due_at": dt(2), "purpose": "x", f"qty_{chr_['id']}": 1, "consent": "1"})
+    other.post("/equipment/request/new", content_type="multipart/form-data", data={"photos": (io.BytesIO(b"\xff\xd8\xff\xe0" + b"p" * 120), "p.jpg"), "borrow_at": dt(1), "due_at": dt(2), "purpose": "x", f"qty_{chr_['id']}": 1, "consent": "1"})
     check(len(repo().all("equipment_requests")) == 1, "OTHER_MRU must attach student card")
     png = b"\x89PNG\r\n\x1a\n" + b"0" * 100
-    other.post("/equipment/request/new", data={"borrow_at": dt(1), "due_at": dt(2), "purpose": "x", f"qty_{chr_['id']}": 1,
-                                               "consent": "1", "borrower_doc": (io.BytesIO(png), "card.png")},
-               content_type="multipart/form-data")
+    other.post("/equipment/request/new", content_type="multipart/form-data", data={"photos": (io.BytesIO(b"\xff\xd8\xff\xe0" + b"p" * 120), "p.jpg"), "borrow_at": dt(1), "due_at": dt(2), "purpose": "x", f"qty_{chr_['id']}": 1,
+                                               "consent": "1", "borrower_doc": (io.BytesIO(png), "card.png")})
     check(len(repo().all("borrower_documents")) == 1, "borrower doc uploaded (encrypted)")
     doc = repo().all("borrower_documents")[0]
     raw = open(os.path.join(tmp, "up", doc["file_path"]), "rb").read()
@@ -277,16 +285,36 @@ with app.app_context():
     rid_ = req["id"]
     items = repo().where("equipment_request_items", request_id=rid_)
     get_ok(eqh, f"/equipment/request/{rid_}", "request detail (head)")
-    eqh.post(f"/equipment/request/{rid_}/action", data={"action": "approve", **{f"approve_{i['id']}": i["qty_requested"] for i in items}})
+    appr = {"action": "approve", **{f"approve_{i['id']}": i["qty_requested"] for i in items}}
+    kept = repo().where("equipment_photos", request_id=rid_)[0]
+    repo().delete("equipment_photos", kept["id"])  # จำลองคำขอเก่าที่ยังไม่มีรูป
+    eqh.post(f"/equipment/request/{rid_}/action", data=appr)
+    check(repo().get("equipment_requests", rid_)["status"] == "PENDING", "cannot approve a request that has no item photos")
+    check("ต้องถ่ายรูปอุปกรณ์ที่จะยืมทั้งหมดก่อน" in stu.get(f"/equipment/request/{rid_}").get_data(as_text=True)
+          and "ยังไม่มีรูปอุปกรณ์จากผู้ยืม" in eqh.get(f"/equipment/request/{rid_}").get_data(as_text=True), "both sides see the photo requirement")
+    snap(stu, rid_, "PICKUP")
+    eqh.post(f"/equipment/request/{rid_}/action", data=appr)
     check(repo().get("equipment_requests", rid_)["status"] == "APPROVED", "approved by EQUIP_HEAD")
     it_spk = next(i for i in items if i["model_id"] == spk["id"])
+    ph0 = repo().where("equipment_photos", request_id=rid_)[0]
+    check(stu.get(f"/equipment/photo/{ph0['id']}").status_code == 200 and eqh.get(f"/equipment/photo/{ph0['id']}").status_code == 200
+          and psec.get(f"/equipment/photo/{ph0['id']}").status_code == 403, "item photo visible to borrower and EQUIP_HEAD only")
+    check(snap(eqh, rid_, "PICKUP").status_code == 403, "only the borrower uploads photos")
+    snap(stu, rid_, "RETURN")
+    check(len(repo().where("equipment_photos", request_id=rid_)) == 1, "return photo not accepted before pickup")
     eqh.post(f"/equipment/request/{rid_}/action", data={"action": "issue", f"units_{it_spk['id']}": "SPK-001", "receiver_name": "x", "id_checked": "1"})
     check(repo().get("equipment_requests", rid_)["status"] == "ISSUED", "issued")
     check(repo().where("equipment_units", asset_tag="SPK-001")[0]["status"] == "BORROWED", "unit borrowed")
     unit1 = repo().where("equipment_units", asset_tag="SPK-001")[0]
     it_chr = next(i for i in items if i["model_id"] == chr_["id"])
     eqh.post(f"/equipment/request/{rid_}/action", data={"action": "return", f"ret_{it_chr['id']}": 8, f"lost_{it_chr['id']}": 2})
+    check(repo().get("equipment_requests", rid_)["status"] == "ISSUED", "cannot receive a return before the return photo")
+    snap(stu, rid_, "RETURN")
+    eqh.post(f"/equipment/request/{rid_}/action", data={"action": "return", f"ret_{it_chr['id']}": 8, f"lost_{it_chr['id']}": 2})
     check(repo().get("equipment_requests", rid_)["status"] == "PARTIAL_RETURNED", "partial return")
+    eqh.post(f"/equipment/request/{rid_}/action", data={"action": "return", f"unit_{unit1['id']}": "RETURN"})
+    check(repo().get("equipment_requests", rid_)["status"] == "PARTIAL_RETURNED", "every return needs a new photo")
+    snap(stu, rid_, "RETURN")
     eqh.post(f"/equipment/request/{rid_}/action", data={"action": "return", f"unit_{unit1['id']}": "RETURN"})
     check(repo().get("equipment_requests", rid_)["status"] == "RETURNED", "fully returned")
     eqh.post(f"/equipment/request/{rid_}/action", data={"action": "close"})
@@ -295,14 +323,14 @@ with app.app_context():
     fine = repo().all("equipment_fines")[0]
     eqh.post(f"/equipment/request/{rid_}/action", data={"action": "close"})
     check(repo().get("equipment_requests", rid_)["status"] != "CLOSED", "cannot close with pending fine")
-    stu.post("/equipment/request/new", data={"borrow_at": dt(3), "due_at": dt(4), "purpose": "x", f"qty_{chr_['id']}": 1, "consent": "1"})
+    stu.post("/equipment/request/new", content_type="multipart/form-data", data={"photos": (io.BytesIO(b"\xff\xd8\xff\xe0" + b"p" * 120), "p.jpg"), "borrow_at": dt(3), "due_at": dt(4), "purpose": "x", f"qty_{chr_['id']}": 1, "consent": "1"})
     check(len(repo().where("equipment_requests", requester_id=req["requester_id"])) == 1, "blocked while fine pending")
     eqh.post(f"/equipment/fine/{fine['id']}", data={"status": "PAID"})
     eqh.post(f"/equipment/request/{rid_}/action", data={"action": "close"})
     check(repo().get("equipment_requests", rid_)["status"] == "CLOSED", "closed after fine paid")
     check(len(repo().all("equipment_transactions")) >= 4, "transactions appended")
     # self request
-    eqh.post("/equipment/request/new", data={"borrow_at": dt(1), "due_at": dt(2), "purpose": "ใช้เอง", f"qty_{chr_['id']}": 5, "consent": "1"})
+    eqh.post("/equipment/request/new", content_type="multipart/form-data", data={"photos": (io.BytesIO(b"\xff\xd8\xff\xe0" + b"p" * 120), "p.jpg"), "borrow_at": dt(1), "due_at": dt(2), "purpose": "ใช้เอง", f"qty_{chr_['id']}": 5, "consent": "1"})
     sr = next(r for r in repo().all("equipment_requests") if r.get("is_self_request"))
     i_sr = repo().where("equipment_request_items", request_id=sr["id"])[0]
     r = eqh.post(f"/equipment/request/{sr['id']}/action", data={"action": "approve", f"approve_{i_sr['id']}": 5})
@@ -310,6 +338,7 @@ with app.app_context():
     avp.post(f"/equipment/request/{sr['id']}/action", data={"action": "approve", f"approve_{i_sr['id']}": 5})
     check(repo().get("equipment_requests", sr["id"])["status"] == "APPROVED", "ADMIN_VP approves self request")
     eqh.post(f"/equipment/request/{sr['id']}/action", data={"action": "issue", "receiver_name": "me"})
+    snap(eqh, sr["id"], "RETURN")
     eqh.post(f"/equipment/request/{sr['id']}/action", data={"action": "return", f"ret_{i_sr['id']}": 5})
     eqh.post(f"/equipment/request/{sr['id']}/action", data={"action": "close"})
     check(repo().get("equipment_requests", sr["id"])["status"] == "RETURNED", "self request needs ADMIN_VP return confirm")
@@ -337,9 +366,9 @@ with app.app_context():
     cat_html = stu.get("/equipment/").get_data(as_text=True)
     check("ไม่เกิน <strong>3 วัน</strong>" in cat_html and "20 บาท" in cat_html, "borrowers see the rules in the catalog")
     n_req = len(repo().all("equipment_requests"))
-    psec.post("/equipment/request/new", data={"borrow_at": dt(1), "due_at": dt(6), "purpose": "ยาวเกิน", "consent": "1", f"qty_{chr_['id']}": 1})
+    psec.post("/equipment/request/new", content_type="multipart/form-data", data={"photos": (io.BytesIO(b"\xff\xd8\xff\xe0" + b"p" * 120), "p.jpg"), "borrow_at": dt(1), "due_at": dt(6), "purpose": "ยาวเกิน", "consent": "1", f"qty_{chr_['id']}": 1})
     check(len(repo().all("equipment_requests")) == n_req, "loan longer than the maximum is refused")
-    psec.post("/equipment/request/new", data={"borrow_at": dt(1), "due_at": dt(3), "purpose": "ทดสอบค่าปรับ", "consent": "1",
+    psec.post("/equipment/request/new", content_type="multipart/form-data", data={"photos": (io.BytesIO(b"\xff\xd8\xff\xe0" + b"p" * 120), "p.jpg"), "borrow_at": dt(1), "due_at": dt(3), "purpose": "ทดสอบค่าปรับ", "consent": "1",
                                                f"qty_{chr_['id']}": 2})
     lr = [x for x in repo().all("equipment_requests") if x.get("purpose") == "ทดสอบค่าปรับ"][0]
     check(lr["status"] == "PENDING", "loan within the maximum is accepted")
@@ -349,11 +378,48 @@ with app.app_context():
     check(repo().get("equipment_requests", lr["id"])["status"] == "ISSUED", "loan issued")
     from app.utils import to_iso as _to_iso
     repo().update("equipment_requests", lr["id"], {"due_at": _to_iso(now() - timedelta(days=2, hours=1))})
+    snap(psec, lr["id"], "RETURN")
     eqh.post(f"/equipment/request/{lr['id']}/action", data={"action": "return", f"ret_{li['id']}": 2})
     lf = repo().where("equipment_fines", request_id=lr["id"])
     check(len(lf) == 1 and lf[0]["type"] == "LATE" and lf[0]["amount"] == 60 and lf[0]["status"] == "PENDING",
           "late return auto-records fine: 1 item x 20 baht x 3 days")
+    # ข้อความจากฝ่ายอุปกรณ์ + QR รับเงิน + แจ้งชำระด้วยสลิป
+    eqh.post("/equipment/settings", content_type="multipart/form-data",
+             data={"action": "payment", "pay_name": "สโมสรนักศึกษา", "pay_note": "โอนแล้วแนบสลิป", "pay_qr": (io.BytesIO(b"\x89PNG\r\n\x1a\n" + b"q" * 90), "qr.png")})
+    es = repo().get("system_settings", "equipment")
+    check(es.get("pay_qr_path") and es["max_loan_days"] == 3, "payment QR saved without losing the loan rules")
+    check(stu.post("/equipment/settings", data={"action": "payment", "pay_name": "x"}).status_code == 403, "only EQUIP_HEAD sets the payment QR")
+    check(psec.post(f"/equipment/request/{lr['id']}/action", data={"action": "feedback", "message": "x"}).status_code == 403, "borrower cannot send feedback")
+    eqh.post(f"/equipment/request/{lr['id']}/action", data={"action": "feedback", "message": "คืนช้า 3 วัน กรุณาชำระค่าปรับ", "with_qr": "1"})
+    pg = psec.get(f"/equipment/request/{lr['id']}").get_data(as_text=True)
+    check("คืนช้า 3 วัน กรุณาชำระค่าปรับ" in pg and "/equipment/pay-qr" in pg and "60.00 บาท" in pg and "สโมสรนักศึกษา" in pg,
+          "borrower sees feedback, payment QR and the amount to pay")
+    check(psec.get("/equipment/pay-qr").status_code == 200 and app.test_client().get("/equipment/pay-qr").status_code == 302, "payment QR needs login")
+
+    def slip(c, fill):
+        return c.post(f"/equipment/request/{lr['id']}/action", content_type="multipart/form-data",
+                      data={"action": "slip", "fine_id": lf[0]["id"], "slip": (io.BytesIO(b"\xff\xd8\xff\xe0" + fill * 80), "s.jpg")})
+    check(slip(stu, b"a").status_code == 403, "only the borrower submits the slip")
+    slip(psec, b"a")
+    f1 = repo().get("equipment_fines", lf[0]["id"])
+    check(f1["slip_status"] == "SUBMITTED" and f1["status"] == "PENDING", "slip submitted, fine waits for review")
+    check(psec.get(f"/equipment/slip/{f1['id']}").status_code == 200 and eqh.get(f"/equipment/slip/{f1['id']}").status_code == 200
+          and stu.get(f"/equipment/slip/{f1['id']}").status_code == 403, "slip visible to borrower and EQUIP_HEAD only")
+    eqh.post(f"/equipment/fine/{f1['id']}", data={"status": "SLIP_REJECT", "note": "ยอดไม่ครบ"})
+    f1 = repo().get("equipment_fines", lf[0]["id"])
+    check(f1["slip_status"] == "REJECTED" and not f1["slip_path"] and "ยอดไม่ครบ" in psec.get(f"/equipment/request/{lr['id']}").get_data(as_text=True),
+          "EQUIP_HEAD rejects a slip with a reason")
+    slip(psec, b"b")
     eqh.post(f"/equipment/fine/{lf[0]['id']}", data={"status": "PAID"})
+    f1 = repo().get("equipment_fines", lf[0]["id"])
+    check(f1["status"] == "PAID" and f1["slip_status"] == "CONFIRMED", "EQUIP_HEAD confirms the payment")
+    psec_id = repo().where("users", student_code="406765002")[0]["id"]
+    titles = [n["title"] for n in repo().where("notifications", user_id=psec_id)]
+    check(all(any(k in t for t in titles) for k in ["ได้รับอนุมัติ", "รับอุปกรณ์แล้ว", "บันทึกรับคืน", "ค่าปรับคืนอุปกรณ์ล่าช้า", "ข้อความจากฝ่ายอุปกรณ์", "ไม่ผ่าน", "ยืนยันรับชำระแล้ว"]),
+          "borrower is notified at every step")
+    eqh_id = repo().where("users", student_code="406765005")[0]["id"]
+    titles = [n["title"] for n in repo().where("notifications", user_id=eqh_id)]
+    check(all(any(k in t for t in titles) for k in ["คำขอยืมอุปกรณ์ใหม่", "ส่งรูปก่อนยืม", "ส่งรูปตอนคืน", "แจ้งชำระเงินแล้ว"]), "EQUIP_HEAD is notified of borrower actions")
     eqh.post(f"/equipment/request/{lr['id']}/action", data={"action": "close"})
     check(repo().get("equipment_requests", lr["id"])["status"] == "CLOSED", "loan closes after the fine is settled")
     # ลบอุปกรณ์/รายชิ้น/หมวด
@@ -577,6 +643,9 @@ with app.app_context():
     ph.post(f"/team/position/{tp['id']}/apply", data={"gender": "M"})
     tapps = repo().where("team_applications", event_id=tid)
     check(len(tapps) == 1 and tapps[0]["member_type"] == "COMM" and tapps[0]["home_division_id"] == "ADMIN", "member applies")
+    ph_id = repo().where("users", student_code="406765006")[0]["id"]
+    conf = [n for n in repo().where("notifications", user_id=ph_id) if "สมัครทีมงานสำเร็จ: งานทดสอบทีม" in n["title"]]
+    check(len(conf) == 1 and "พิธีกร" in conf[0]["body"], "applicant gets a success confirmation for the application")
     ph.post(f"/team/position/{tp['id']}/apply", data={})
     eqh.post(f"/team/position/{tp['id']}/apply", data={"gender": "M"})
     check(len(repo().where("team_applications", event_id=tid)) == 1, "duplicate and over-quota applications rejected")
@@ -791,6 +860,13 @@ with app.app_context():
     check(len(pushes) == 1 and pushes[0][1]["to"] == "Ustu", "push only for event types the user opted into")
     txt = pushes[0][1]["messages"][0]["text"]
     check("ข้อความลับภายใน" not in txt and "https://sta.example/equipment/requests/1" in txt, "LINE text is generic with a link, no item content")
+    sent.clear()
+    from app.views.equipment import eqp_notify
+    with app.test_request_context():
+        eqp_notify(stu_id, "รับอุปกรณ์แล้ว (EQTEST)", "รายละเอียดภายใน", "/equipment/request/1")
+    pushes = [x for x in sent if x[0] == "/message/push"]
+    check(len(pushes) == 1 and "ยืม-คืนอุปกรณ์: รับอุปกรณ์แล้ว (EQTEST)" in pushes[0][1]["messages"][0]["text"]
+          and "รายละเอียดภายใน" not in pushes[0][1]["messages"][0]["text"], "every equipment event pushes a short LINE message")
     check(repo().where("notification_deliveries", user_id=stu_id, status="SENT"), "delivery recorded")
     say("เช็กสถานะคำขอยืม")
     check("คำขอยืม" in sent[-1][1]["messages"][0]["text"] and sent[-1][0] == "/message/reply", "rich menu answered by reply")
@@ -827,6 +903,12 @@ with app.app_context():
     dig = [x for x in sent if x[0] == "/message/push" and x[1]["to"] == "Uavp"]
     check(len(dig) == 1 and "รออนุมัติ" in dig[0][1]["messages"][0]["text"], "approvers get one daily digest message")
     repo().delete("approval_requests", rq)
+    repo().set("notification_preferences", stu_id, {"line": {"TEAM": True}})
+    sent.clear()
+    with app.test_request_context():
+        _notify(stu_id, "สมัครทีมงานสำเร็จ: งานรับน้อง", "ตำแหน่ง พิธีกร", "/team/my", event="TEAM", line_text="สมัครทีมงานสำเร็จ: งานรับน้อง · ตำแหน่ง พิธีกร")
+    tp_push = [x for x in sent if x[0] == "/message/push"]
+    check(len(tp_push) == 1 and "สมัครทีมงานสำเร็จ: งานรับน้อง" in tp_push[0][1]["messages"][0]["text"], "team application confirmation is pushed to LINE")
     stu.post("/line/settings", data={"action": "unlink"})
     check(not line_mod.link_of(stu_id) and not repo().get("notification_preferences", stu_id), "unlink deletes LINE user id and preferences")
     app.config.update(LINE_CHANNEL_ACCESS_TOKEN="", LINE_CHANNEL_SECRET="", LINE_TRANSPORT=None)

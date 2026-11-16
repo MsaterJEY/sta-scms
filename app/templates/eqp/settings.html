@@ -21,7 +21,20 @@
       · ระบบบันทึกค่าปรับให้อัตโนมัติตอนรับคืน และคุณแก้ไขหรือยกเว้นได้</div>
     <button class="btn btn-sta">บันทึก</button>
   </form></div></div></div>
-<div class="col-lg-6"><div class="card"><div class="card-header">หมวดอุปกรณ์</div>
+<div class="col-lg-6"><div class="card mb-3"><div class="card-header">ช่องทางรับชำระค่าปรับ/ค่าชดใช้</div><div class="card-body">
+  <form method="post" enctype="multipart/form-data">{{ m.csrf() }}<input type="hidden" name="action" value="payment">
+    <label class="form-label" for="pn">ชื่อบัญชีผู้รับเงิน</label>
+    <input class="form-control mb-2" id="pn" name="pay_name" maxlength="120" value="{{ s.pay_name }}" placeholder="เช่น สโมสรนักศึกษาคณะวิทยาศาสตร์ฯ">
+    <label class="form-label" for="pt">หมายเหตุถึงผู้ชำระ</label>
+    <input class="form-control mb-2" id="pt" name="pay_note" maxlength="200" value="{{ s.pay_note }}" placeholder="เช่น โอนแล้วแนบสลิปในระบบทุกครั้ง">
+    <label class="form-label" for="pq">รูป QR รับเงิน (เช่น QR พร้อมเพย์)</label>
+    <input class="form-control mb-2" id="pq" type="file" name="pay_qr" accept="image/jpeg,image/png,image/webp">
+    {% if s.pay_qr_path %}<div class="d-flex align-items-center gap-3 mb-2"><img src="{{ url_for('equipment.pay_qr') }}" alt="QR รับเงินปัจจุบัน" style="width:8rem;border-radius:.6rem;border:1px solid var(--sta-border)">
+      <div class="form-check"><input class="form-check-input" type="checkbox" name="remove_qr" id="prq"><label class="form-check-label small" for="prq">ลบ QR นี้</label></div></div>{% endif %}
+    <div class="form-text mb-2">ผู้ยืมที่มีค่าปรับค้างจะเห็น QR นี้พร้อมยอดที่ต้องชำระ แล้วแนบสลิปให้ตรวจในระบบ ระบบไม่ได้ตัดเงินหรือเชื่อมธนาคาร</div>
+    <button class="btn btn-sta">บันทึก</button>
+  </form></div></div>
+<div class="card"><div class="card-header">หมวดอุปกรณ์</div>
   <ul class="list-group list-group-flush">
     {% for c in cats %}
     <li class="list-group-item"><form method="post" class="d-flex gap-2 align-items-center">{{ m.csrf() }}<input type="hidden" name="category_id" value="{{ c.id }}">

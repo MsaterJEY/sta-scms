@@ -19,6 +19,10 @@
     {% endfor %}</tbody></table></div></div>
   <div class="card mb-3"><div class="card-body">
     <label class="form-label">วัตถุประสงค์</label><textarea class="form-control mb-2" name="purpose" rows="2" required></textarea>
+    <label class="form-label" for="rp"><i class="bi bi-camera me-1"></i>รูปอุปกรณ์ที่จะยืมทั้งหมด <span class="text-danger">*</span></label>
+    <input class="form-control mb-1" id="rp" type="file" name="photos" accept="image/*" multiple data-max-files="{{ max_photos }}" required>
+    <div class="form-text mb-2">ถ่ายให้เห็นอุปกรณ์ทุกรายการและสภาพก่อนยืมชัดเจน ไม่เกิน {{ max_photos }} รูป — หัวหน้าฝ่ายอุปกรณ์จะพิจารณาคำขอที่มีรูปแล้วเท่านั้น</div>
+    <input class="form-control mb-2" name="photo_note" maxlength="200" placeholder="หมายเหตุสภาพอุปกรณ์ (ไม่บังคับ) เช่น มีรอยขีดข่วนเดิม">
     <label class="form-label">ชื่อกิจกรรม (ไม่บังคับ)</label><input class="form-control mb-2" name="event_name" maxlength="200" placeholder="เช่น งานรับน้อง 2569">
     {% if doc_type %}
     <label class="form-label">แนบ{{ 'รูปบัตรนักศึกษา' if doc_type == 'STUDENT_CARD' else 'รูปบัตรประชาชน (แนะนำเฉพาะด้านหน้า ปิดข้อมูลที่ไม่จำเป็น)' }} <span class="text-danger">*</span></label>

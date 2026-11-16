@@ -13,6 +13,20 @@
       <td>{{ it.qty_requested }}</td><td>{{ it.qty_approved }}</td><td>{{ it.qty_issued }}</td><td>{{ it.qty_returned }}</td><td>{{ it.qty_damaged }}</td><td>{{ it.qty_lost }}</td><td>{{ it.outstanding }}</td></tr>{% endfor %}
     </tbody></table></div></div>
 
+  {# --- ผู้ยืมถ่ายรูปก่อนยืม / ตอนคืน --- #}
+  {% if is_requester and (r.status in ['PENDING', 'APPROVED'] or r.status in ['ISSUED', 'PARTIAL_RETURNED']) %}
+  {% set stage = 'PICKUP' if r.status in ['PENDING', 'APPROVED'] else 'RETURN' %}{% set need = need_pickup if stage == 'PICKUP' else need_return %}
+  <div class="card mb-3 border-{{ 'danger' if need else 'success' }}"><div class="card-header"><i class="bi bi-camera me-1"></i>ถ่ายรูปอุปกรณ์{{ stages[stage] }}</div><div class="card-body">
+    {% if need %}<div class="alert alert-danger small py-2">{{ 'ต้องถ่ายรูปอุปกรณ์ที่จะยืมทั้งหมดก่อน หัวหน้าฝ่ายอุปกรณ์จึงจะพิจารณาคำขอได้' if stage == 'PICKUP' else 'ต้องถ่ายรูปอุปกรณ์ทุกครั้งที่นำมาคืน ฝ่ายอุปกรณ์จึงจะรับคืนได้' }}</div>
+    {% else %}<div class="alert alert-success small py-2">ส่งรูป{{ stages[stage] }}แล้ว ถ่ายเพิ่มได้ถ้าต้องการ</div>{% endif %}
+    <form method="post" action="{{ url_for('equipment.request_action', rid=r.id) }}" enctype="multipart/form-data">{{ m.csrf() }}<input type="hidden" name="action" value="photo"><input type="hidden" name="stage" value="{{ stage }}">
+      <input class="form-control mb-2" type="file" name="photos" accept="image/*" capture="environment" multiple data-max-files="{{ max_photos }}" required aria-label="รูปอุปกรณ์">
+      <input class="form-control mb-2" name="note" maxlength="200" placeholder="หมายเหตุสภาพอุปกรณ์ (ไม่บังคับ) เช่น มีรอยขีดข่วนเดิม">
+      <div class="form-text mb-2">ถ่ายให้เห็นสภาพอุปกรณ์ชัดเจน ครั้งละไม่เกิน {{ max_photos }} รูป รูปนี้ใช้เป็นหลักฐานสภาพ{{ 'ก่อนยืม' if stage == 'PICKUP' else 'ตอนคืน' }}ของทั้งสองฝ่าย</div>
+      <button class="btn btn-sta"><i class="bi bi-upload"></i> ส่งรูป</button></form>
+  </div></div>
+  {% endif %}
+
   {# --- พิจารณา --- #}
   {% if r.status == 'PENDING' and ((manage and not r.is_self_request) or self_approver) %}
   <div class="card mb-3 border-warning"><div class="card-header">พิจารณาคำขอ {% if r.is_self_request %}(แทนหัวหน้าฝ่ายอุปกรณ์){% endif %}</div><div class="card-body">
@@ -20,7 +34,8 @@
       {% for it in items %}<div class="row g-2 align-items-center mb-2"><div class="col-7 small">{{ models[it.model_id].name }} (ขอ {{ it.qty_requested }}, คงเหลือในช่วง {{ it.avail }})</div>
         <div class="col-5"><input class="form-control form-control-sm" type="number" min="0" max="{{ it.qty_requested }}" name="approve_{{ it.id }}" value="{{ [it.qty_requested, it.avail]|min }}"></div></div>{% endfor %}
       <input class="form-control mb-2" name="reason" placeholder="เหตุผล (บังคับเมื่อปฏิเสธ)">
-      <button name="action" value="approve" class="btn btn-success">อนุมัติ</button>
+      {% if need_pickup %}<div class="alert alert-warning small py-2">คำขอนี้ยังไม่มีรูปอุปกรณ์จากผู้ยืม จึงยังอนุมัติไม่ได้ (ปฏิเสธได้)</div>{% endif %}
+      <button name="action" value="approve" class="btn btn-success" {% if need_pickup %}disabled{% endif %}>อนุมัติ</button>
       <button name="action" value="reject" class="btn btn-outline-danger">ปฏิเสธ</button></form></div></div>
   {% elif r.status == 'PENDING' and manage and r.is_self_request %}
   <div class="alert alert-info small">คำขอของหัวหน้าฝ่ายอุปกรณ์เอง ต้องให้อุปนายกฝ่ายบริหารและสัมพันธ์อนุมัติ</div>
@@ -36,7 +51,8 @@
       {% endfor %}
       <input class="form-control mb-2" name="receiver_name" placeholder="ชื่อผู้รับของ" value="{{ requester|uname }}" required>
       <div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="id_checked" id="idc"><label class="form-check-label small" for="idc">ตรวจบัตรผู้ยืมแล้ว</label></div>
-      <button class="btn btn-primary">บันทึกการจ่าย</button></form></div></div>
+      {% if need_pickup %}<div class="alert alert-warning small py-2">รอผู้ยืมถ่ายรูปอุปกรณ์ก่อนยืมในระบบ จึงจะบันทึกการจ่ายได้</div>{% endif %}
+      <button class="btn btn-primary" {% if need_pickup %}disabled{% endif %}>บันทึกการจ่าย</button></form></div></div>
   {% endif %}
 
   {# --- รับคืน --- #}
@@ -56,12 +72,42 @@
           <div class="col-3"><input class="form-control form-control-sm" type="number" min="0" name="lost_{{ it.id }}" placeholder="สูญหาย"></div>
           <div class="col-3"><input class="form-control form-control-sm" name="cond_{{ it.id }}" placeholder="สภาพ"></div></div>
       {% endif %}{% endfor %}
-      <button class="btn btn-success mt-2">บันทึกรับคืน</button></form></div></div>
+      {% if need_return %}<div class="alert alert-warning small py-2 mt-2">รอผู้ยืมถ่ายรูปอุปกรณ์ตอนคืนในระบบ จึงจะบันทึกรับคืนได้</div>{% endif %}
+      <button class="btn btn-success mt-2" {% if need_return %}disabled{% endif %}>บันทึกรับคืน</button></form></div></div>
   {% endif %}
 
   {% if r.status == 'RETURNED' and r.is_self_request and self_approver and not r.return_confirmed_at %}
   <div class="card mb-3"><div class="card-body"><form method="post" action="{{ url_for('equipment.request_action', rid=r.id) }}">{{ m.csrf() }}<input type="hidden" name="action" value="confirm_return">
     <button class="btn btn-success">ยืนยันรับคืน (อุปนายกฝ่ายบริหารฯ)</button></form></div></div>{% endif %}
+
+  {# --- รูปหลักฐานสภาพอุปกรณ์ --- #}
+  {% if photos %}
+  <div class="card mb-3"><div class="card-header">รูปหลักฐานสภาพอุปกรณ์</div><div class="card-body">
+    {% for code, label in stages.items() %}{% set rows = photos|selectattr('stage', 'equalto', code)|list %}{% if rows %}
+    <div class="fw-semibold small mb-2">{{ label }} ({{ rows|length }} รูป)</div>
+    <div class="row g-2 mb-3">{% for ph in rows %}
+      <div class="col-4 col-md-3"><a href="{{ url_for('equipment.photo', pid=ph.id) }}" target="_blank"><img class="eqp-photo" src="{{ url_for('equipment.photo', pid=ph.id) }}" alt="รูป{{ label }} {{ loop.index }}" loading="lazy"></a>
+        <div class="small text-secondary mt-1">{{ ph.created_at|thaidate }}{% if ph.note %}<br>{{ ph.note }}{% endif %}</div></div>{% endfor %}</div>
+    {% endif %}{% endfor %}
+  </div></div>
+  {% endif %}
+
+  {# --- ข้อความจากฝ่ายอุปกรณ์ --- #}
+  {% if feedback or manage %}
+  <div class="card mb-3"><div class="card-header">ข้อความจากฝ่ายอุปกรณ์</div>
+    <ul class="list-group list-group-flush">{% for fb in feedback %}
+      <li class="list-group-item"><div class="pre-wrap">{{ fb.message }}</div><div class="small text-secondary">{{ fb.created_at|thaidate }}</div>
+        {% if fb.with_qr and rules.pay_qr_path %}<div class="mt-2"><img class="eqp-qr" src="{{ url_for('equipment.pay_qr') }}" alt="QR รับเงินของฝ่ายอุปกรณ์">{% if rules.pay_name %}<div class="small">ชื่อบัญชี: {{ rules.pay_name }}</div>{% endif %}</div>{% endif %}</li>
+    {% else %}<li class="list-group-item small text-secondary">ยังไม่มีข้อความ</li>{% endfor %}</ul>
+    {% if manage %}<div class="card-body border-top">
+      <form method="post" action="{{ url_for('equipment.request_action', rid=r.id) }}">{{ m.csrf() }}<input type="hidden" name="action" value="feedback">
+        <textarea class="form-control mb-2" name="message" rows="2" maxlength="1000" placeholder="ข้อความถึงผู้ยืม เช่น ผลตรวจสภาพ หรือรายละเอียดค่าปรับ" required></textarea>
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+          <div class="form-check"><input class="form-check-input" type="checkbox" name="with_qr" id="fbq" {% if not rules.pay_qr_path %}disabled{% endif %}>
+            <label class="form-check-label small" for="fbq">แนบ QR รับเงิน{% if not rules.pay_qr_path %} (ยังไม่ได้ตั้งค่า — <a href="{{ url_for('equipment.settings') }}">ตั้งค่า</a>){% endif %}</label></div>
+          <button class="btn btn-sm btn-sta">ส่งข้อความ</button></div></form></div>{% endif %}
+  </div>
+  {% endif %}
 
   {# --- ค่าชดใช้ --- #}
   <div class="card mb-3"><div class="card-header">ค่าชดใช้</div>
@@ -69,7 +115,26 @@
       <li class="list-group-item d-flex flex-wrap justify-content-between gap-2 align-items-center"><span>{{ {'LATE':'คืนล่าช้า','DAMAGE':'ชำรุด','LOSS':'สูญหาย'}[f.type] }} · {{ '{:,.2f}'.format(f.amount) }} บาท {{ m.badge(f.status) }}<div class="small text-secondary">{{ f.note }}</div></span>
         {% if manage and f.status == 'PENDING' %}<form method="post" action="{{ url_for('equipment.settle_fine', fid=f.id) }}" class="d-flex gap-1">{{ m.csrf() }}
           <input class="form-control form-control-sm" name="note" placeholder="หมายเหตุ/เหตุผลยกเว้น" style="max-width:180px">
-          <button name="status" value="PAID" class="btn btn-sm btn-outline-success">ชำระแล้ว</button><button name="status" value="WAIVED" class="btn btn-sm btn-outline-secondary">ยกเว้น</button></form>{% endif %}</li>
+          <button name="status" value="PAID" class="btn btn-sm btn-outline-success">ชำระแล้ว</button><button name="status" value="WAIVED" class="btn btn-sm btn-outline-secondary">ยกเว้น</button>
+          {% if f.slip_path %}<button name="status" value="SLIP_REJECT" class="btn btn-sm btn-outline-danger" title="ต้องระบุเหตุผลในช่องหมายเหตุ">ตีกลับสลิป</button>{% endif %}</form>{% endif %}
+        {% if f.slip_path and (manage or is_requester) %}<div class="w-100 small"><a href="{{ url_for('equipment.slip', fid=f.id) }}" target="_blank"><i class="bi bi-receipt"></i> ดูหลักฐานการโอน</a> · ส่งเมื่อ {{ f.slip_at|thaidate }}
+          {% if f.status == 'PENDING' %}<span class="badge text-bg-warning">รอตรวจสอบ</span>{% endif %}</div>{% endif %}
+        {% if f.slip_status == 'REJECTED' and f.status == 'PENDING' %}<div class="w-100 small text-danger">หลักฐานเดิมไม่ผ่าน: {{ f.slip_reject_reason }}</div>{% endif %}
+        {% if is_requester and f.status == 'PENDING' %}
+        <div class="w-100 eqp-pay">
+          <div class="row g-3 align-items-center">
+            {% if rules.pay_qr_path %}<div class="col-auto"><img class="eqp-qr" src="{{ url_for('equipment.pay_qr') }}" alt="QR รับเงินของฝ่ายอุปกรณ์"></div>{% endif %}
+            <div class="col">
+              <div>ยอดที่ต้องชำระ <strong class="fs-5">{{ '{:,.2f}'.format(f.amount) }} บาท</strong></div>
+              {% if rules.pay_name %}<div class="small">ชื่อบัญชี: {{ rules.pay_name }}</div>{% endif %}
+              {% if rules.pay_note %}<div class="small text-secondary">{{ rules.pay_note }}</div>{% endif %}
+              {% if not rules.pay_qr_path %}<div class="small text-secondary">ฝ่ายอุปกรณ์ยังไม่ได้ตั้ง QR รับเงิน ชำระหน้างานหรือสอบถามช่องทางจากฝ่ายอุปกรณ์</div>{% endif %}
+              <form method="post" action="{{ url_for('equipment.request_action', rid=r.id) }}" enctype="multipart/form-data" class="d-flex flex-wrap gap-2 mt-2">{{ m.csrf() }}<input type="hidden" name="action" value="slip"><input type="hidden" name="fine_id" value="{{ f.id }}">
+                <input class="form-control form-control-sm" style="max-width:16rem" type="file" name="slip" accept="image/*" required aria-label="หลักฐานการโอน">
+                <button class="btn btn-sm btn-sta">{{ 'ส่งสลิปใหม่' if f.slip_path else 'แจ้งชำระเงิน' }}</button></form>
+            </div>
+          </div>
+        </div>{% endif %}</li>
     {% else %}<li class="list-group-item small text-secondary">ไม่มี</li>{% endfor %}</ul>
     {% if manage and r.status in ['ISSUED','PARTIAL_RETURNED','RETURNED'] %}<div class="card-body border-top">
       <form method="post" action="{{ url_for('equipment.request_action', rid=r.id) }}" class="row g-2">{{ m.csrf() }}<input type="hidden" name="action" value="fine">

@@ -95,11 +95,34 @@ def required_doc(user):
     return None
 
 
-EQP_DEFAULTS = {"max_loan_days": 7, "late_fine_per_item": 0.0, "late_fine_per_day": True}
+EQP_DEFAULTS = {"max_loan_days": 7, "late_fine_per_item": 0.0, "late_fine_per_day": True,
+                "pay_name": "", "pay_note": "", "pay_qr_path": None}
+MAX_PHOTOS = 3  # ต่อการอัปโหลดหนึ่งครั้ง (คำขอ HTTP จำกัด 4 MB)
+PHOTO_STAGES = {"PICKUP": "ก่อนยืม", "RETURN": "ตอนคืน"}
+
+
+def eqp_notify(user_ids, title, body="", link=None):
+    """แจ้งเตือนทุกรายการของการยืม-คืน: ในระบบ + LINE (ผู้ที่ผูกบัญชีและเปิดรับไว้) ข้อความ LINE ไม่มีรายละเอียดส่วนบุคคล"""
+    notify(user_ids, title, body, link, event="EQP_DECISION", line_text="ยืม-คืนอุปกรณ์: " + title)
+
+
+def photos_of(rid, stage=None):
+    rows = sorted(repo().where("equipment_photos", request_id=rid), key=lambda x: x.get("created_at") or "")
+    return [x for x in rows if not stage or x.get("stage") == stage]
+
+
+def needs_pickup_photo(r):
+    """ต้องมีรูปก่อนยืมอย่างน้อย 1 รูปก่อนจ่ายอุปกรณ์"""
+    return not photos_of(r["id"], "PICKUP")
+
+
+def needs_return_photo(r):
+    """ต้องมีรูปตอนคืนที่ยังไม่ถูกใช้กับการรับคืนครั้งก่อน (คืนบางส่วนก็ต้องถ่ายใหม่ทุกครั้ง)"""
+    return not any(not x.get("used") for x in photos_of(r["id"], "RETURN"))
 
 
 def eqp_settings():
-    """ค่าที่หัวหน้าฝ่ายอุปกรณ์กำหนด: ระยะเวลายืมสูงสุด และอัตราค่าปรับคืนล่าช้าต่อรายการ"""
+    """ค่าที่หัวหน้าฝ่ายอุปกรณ์กำหนด: ระยะเวลายืมสูงสุด อัตราค่าปรับคืนล่าช้า และช่องทางรับชำระ"""
     doc = repo().get("system_settings", "equipment") or {}
     return {k: doc.get(k, v) for k, v in EQP_DEFAULTS.items()}
 
@@ -266,9 +289,27 @@ def settings():
             else:
                 old = eqp_settings()
                 new = {"max_loan_days": days, "late_fine_per_item": rate, "late_fine_per_day": bool(f.get("late_fine_per_day"))}
-                repo().set("system_settings", "equipment", dict(new, updated_by=current_user()["id"], updated_at=now_iso()))
+                repo().set("system_settings", "equipment", dict(new, updated_by=current_user()["id"], updated_at=now_iso()), merge=True)
                 audit("eqp.settings_update", "system_settings", "equipment", old=old, new=new)
                 flash("บันทึกการตั้งค่าแล้ว ใช้กับคำขอยืมใหม่ทันที", "success")
+        elif action == "payment":
+            cur = eqp_settings()
+            new = {"pay_name": f.get("pay_name", "").strip()[:120], "pay_note": f.get("pay_note", "").strip()[:200]}
+            fs = request.files.get("pay_qr")
+            if fs and fs.filename:
+                try:
+                    blob, ext, ctype = validate_upload(fs, images_only=True, allow_pdf=False)
+                except UploadError as e:
+                    flash(f"รูป QR: {e}", "danger")
+                    return redirect(url_for("equipment.settings"))
+                new["pay_qr_path"] = save_bytes("eqp_pay", blob, ext, ctype)
+            elif f.get("remove_qr"):
+                new["pay_qr_path"] = None
+            if "pay_qr_path" in new and cur.get("pay_qr_path"):
+                delete_file(cur["pay_qr_path"])
+            repo().set("system_settings", "equipment", dict(new, updated_by=current_user()["id"], updated_at=now_iso()), merge=True)
+            audit("eqp.payment_settings", "system_settings", "equipment", new={"pay_name": new["pay_name"], "qr_changed": "pay_qr_path" in new})
+            flash("บันทึกช่องทางรับชำระแล้ว", "success")
         elif action == "category":
             name = f.get("name", "").strip()[:60]
             cid = f.get("category_id")
@@ -345,6 +386,17 @@ def request_new():
         if not f.get("consent"):
             flash("กรุณายินยอมการเก็บข้อมูลเพื่อการยืมอุปกรณ์", "danger")
             return redirect(url_for("equipment.request_new"))
+        # ผู้ยืมต้องถ่ายรูปอุปกรณ์ที่จะยืมทั้งหมดก่อนส่งคำขอให้หัวหน้าฝ่ายพิจารณา
+        photo_payloads = []
+        for fs in [x for x in request.files.getlist("photos") if x and x.filename][:MAX_PHOTOS]:
+            try:
+                photo_payloads.append(validate_upload(fs, images_only=True, allow_pdf=False))
+            except UploadError as e:
+                flash(f"รูปอุปกรณ์ {fs.filename}: {e}", "danger")
+                return redirect(url_for("equipment.request_new", start=f.get("borrow_at"), end=f.get("due_at")))
+        if not photo_payloads:
+            flash("กรุณาถ่ายรูปอุปกรณ์ที่จะยืมทั้งหมดอย่างน้อย 1 รูปก่อนส่งคำขอ", "danger")
+            return redirect(url_for("equipment.request_new", start=f.get("borrow_at"), end=f.get("due_at")))
         is_self = "EQUIP_HEAD" in user_roles(u)
         rid = repo().add("equipment_requests", {
             "tracking_code": gen_code("EQ"), "requester_id": u["id"], "activity_id": None, "event_name": f.get("event_name", "").strip()[:200],
@@ -355,6 +407,10 @@ def request_new():
             repo().add("equipment_request_items", {"request_id": rid, "model_id": m["id"], "qty_requested": q,
                                                    "qty_approved": 0, "qty_issued": 0, "qty_returned": 0,
                                                    "qty_lost": 0, "qty_damaged": 0, "unit_ids": []})
+        for blob, ext, ctype in photo_payloads:
+            repo().add("equipment_photos", {"request_id": rid, "stage": "PICKUP", "file_path": save_bytes("eqp_photos", blob, ext, ctype),
+                                            "note": f.get("photo_note", "").strip()[:200], "uploaded_by": u["id"],
+                                            "created_at": now_iso()})
         if doc_payload:
             path = save_bytes("borrower_docs", *doc_payload, encrypt=True)
             repo().add("borrower_documents", {"request_id": rid, "user_id": u["id"], "doc_type": doc_type, "file_path": path,
@@ -367,7 +423,7 @@ def request_new():
                                      url_for("equipment.request_detail", rid=rid))
             repo().update("equipment_requests", rid, {"approval_request_id": req_id})
         else:
-            notify_role("EQUIP_HEAD", "มีคำขอยืมอุปกรณ์ใหม่", display_name(u), url_for("equipment.request_detail", rid=rid))
+            eqp_notify(list(holders_of_role("EQUIP_HEAD")), "มีคำขอยืมอุปกรณ์ใหม่", display_name(u), url_for("equipment.request_detail", rid=rid))
         audit("eqp.request_create", "equipment_request", rid, new={"self": is_self})
         flash("ส่งคำขอยืมแล้ว", "success")
         return redirect(url_for("equipment.request_detail", rid=rid))
@@ -376,6 +432,7 @@ def request_new():
     for m in models:
         m["avail"] = available(m, start, end)
     return render_template("eqp/request_form.html", models=models, doc_type=doc_type, blocks=borrow_blocks(u), rules=eqp_settings(),
+                           max_photos=MAX_PHOTOS,
                            too_long=parse_dt(end) - parse_dt(start) > timedelta(days=int(eqp_settings()["max_loan_days"])),
                            start=start, end=end, preselect=request.args.get("model"))
 
@@ -439,7 +496,11 @@ def request_detail(rid):
                            txs=txs, req_state=req_state, requester=requester, manage=manage,
                            self_approver=can("eqp.self_approve") and r.get("is_self_request"),
                            overdue=is_overdue(r), event_name=r.get("event_name") or (repo().get("activities", r.get("activity_id")) or {}).get("title"),
-                           show_contact=manage or r["requester_id"] == u["id"], rules=eqp_settings(), late=late_days(r) if r.get("status") in OUT_REQ else 0,
+                           show_contact=manage or r["requester_id"] == u["id"], rules=eqp_settings(),
+                           is_requester=r["requester_id"] == u["id"], photos=photos_of(rid), stages=PHOTO_STAGES,
+                           need_pickup=r.get("status") in ("PENDING", "APPROVED") and needs_pickup_photo(r),
+                           need_return=r.get("status") in OUT_REQ and needs_return_photo(r), max_photos=MAX_PHOTOS,
+                           feedback=sorted(repo().where("equipment_feedback", request_id=rid), key=lambda x: x.get("created_at") or ""), late=late_days(r) if r.get("status") in OUT_REQ else 0,
                            default_fine=sum(int(it.get("qty_lost") or 0) * float(models.get(it["model_id"], {}).get("replacement_cost") or 0)
                                             for it in items))
 
@@ -461,15 +522,81 @@ def request_action(rid):
     items = items_of(rid)
     manage = can("eqp.manage")
 
+    link = url_for("equipment.request_detail", rid=rid)
+    code = r.get("tracking_code")
+    heads = list(holders_of_role("EQUIP_HEAD"))
+
     if action == "cancel":
         if r["requester_id"] != u["id"] or r["status"] not in ("PENDING", "APPROVED"):
             abort(403)
         repo().update("equipment_requests", rid, {"status": "CANCELLED"})
         audit("eqp.request_cancel", "equipment_request", rid)
+        eqp_notify(heads, f"ผู้ยืมยกเลิกคำขอ {code}", "", link)
+
+    elif action == "photo":
+        # ผู้ยืมถ่ายรูปอุปกรณ์ก่อนรับของ และทุกครั้งที่นำมาคืน
+        stage = request.form.get("stage")
+        if r["requester_id"] != u["id"] or stage not in PHOTO_STAGES:
+            abort(403)
+        if (stage == "PICKUP" and r["status"] not in ("PENDING", "APPROVED")) or (stage == "RETURN" and r["status"] not in OUT_REQ):
+            flash("ยังไม่ถึงขั้นตอนที่ต้องถ่ายรูปนี้", "danger")
+            return redirect(link)
+        files = [x for x in request.files.getlist("photos") if x and x.filename][:MAX_PHOTOS]
+        saved = 0
+        for fs in files:
+            try:
+                blob, ext, ctype = validate_upload(fs, images_only=True, allow_pdf=False)
+            except UploadError as e:
+                flash(f"{fs.filename}: {e}", "danger")
+                continue
+            repo().add("equipment_photos", {"request_id": rid, "stage": stage, "file_path": save_bytes("eqp_photos", blob, ext, ctype),
+                                            "note": request.form.get("note", "").strip()[:200], "uploaded_by": u["id"],
+                                            "created_at": now_iso()})
+            saved += 1
+        if not saved:
+            flash("กรุณาถ่ายหรือเลือกรูปอย่างน้อย 1 รูป", "danger")
+            return redirect(link)
+        audit("eqp.photo_upload", "equipment_request", rid, new={"stage": stage, "count": saved})
+        eqp_notify(heads, f"ผู้ยืมส่งรูป{PHOTO_STAGES[stage]}แล้ว ({code})", "", link)
+        flash(f"บันทึกรูป{PHOTO_STAGES[stage]} {saved} รูปแล้ว " + ("" if stage == "PICKUP" else "นำอุปกรณ์ไปคืนที่ฝ่ายอุปกรณ์ได้เลย"), "success")
+
+    elif action == "feedback":
+        # หัวหน้าฝ่ายอุปกรณ์ส่งข้อความถึงผู้ยืม แนบ QR รับเงินได้
+        if not manage:
+            abort(403)
+        msg = request.form.get("message", "").strip()[:1000]
+        if not msg:
+            flash("กรุณาพิมพ์ข้อความ", "danger")
+            return redirect(link)
+        with_qr = bool(request.form.get("with_qr")) and bool(eqp_settings().get("pay_qr_path"))
+        fb = repo().add("equipment_feedback", {"request_id": rid, "message": msg, "with_qr": with_qr, "by": u["id"], "created_at": now_iso()})
+        audit("eqp.feedback", "equipment_feedback", fb)
+        eqp_notify(r["requester_id"], f"มีข้อความจากฝ่ายอุปกรณ์ ({code})", "", link)
+
+    elif action == "slip":
+        # ผู้ยืมแนบหลักฐานการโอนค่าปรับ/ค่าชดใช้ รอหัวหน้าฝ่ายอุปกรณ์ตรวจ
+        fine = repo().get("equipment_fines", request.form.get("fine_id"))
+        if r["requester_id"] != u["id"] or not fine or fine.get("request_id") != rid or fine.get("status") != "PENDING":
+            abort(403)
+        try:
+            blob, ext, ctype = validate_upload(request.files.get("slip"), images_only=True, allow_pdf=False)
+        except UploadError as e:
+            flash(f"หลักฐานการโอน: {e}", "danger")
+            return redirect(link)
+        if fine.get("slip_path"):
+            delete_file(fine["slip_path"])
+        repo().update("equipment_fines", fine["id"], {"slip_path": save_bytes("eqp_slips", blob, ext, ctype, encrypt=True),
+                                                      "slip_at": now_iso(), "slip_status": "SUBMITTED", "slip_reject_reason": None})
+        audit("eqp.slip_upload", "equipment_fine", fine["id"])
+        eqp_notify(heads, f"ผู้ยืมแจ้งชำระเงินแล้ว รอตรวจสอบ ({code})", f"{float(fine.get('amount') or 0):,.2f} บาท", link)
+        flash("ส่งหลักฐานการโอนแล้ว รอฝ่ายอุปกรณ์ตรวจสอบ", "success")
 
     elif action in ("approve", "reject"):
         if r["status"] != "PENDING":
             abort(400)
+        if action == "approve" and needs_pickup_photo(r):
+            flash("ยังอนุมัติไม่ได้: ผู้ยืมต้องถ่ายรูปอุปกรณ์ที่จะยืมก่อน", "danger")
+            return redirect(link)
         reason = request.form.get("reason", "").strip()
         if r.get("is_self_request"):
             # EQUIP_HEAD อนุมัติคำขอของตัวเองไม่ได้ ต้องเป็น ADMIN_VP
@@ -488,7 +615,7 @@ def request_action(rid):
                 return redirect(url_for("equipment.request_detail", rid=rid))
             repo().update("equipment_requests", rid, {"status": "REJECTED", "reject_reason": reason, "decided_by": u["id"],
                                                       "decided_at": now_iso()})
-            notify(r["requester_id"], "คำขอยืมถูกปฏิเสธ", reason, url_for("equipment.request_detail", rid=rid), event="EQP_DECISION")
+            eqp_notify(r["requester_id"], "คำขอยืมถูกปฏิเสธ", reason, url_for("equipment.request_detail", rid=rid))
         else:
             models = {m["id"]: m for m in repo().all("equipment_models")}
             for it in items:
@@ -500,14 +627,17 @@ def request_action(rid):
                     return redirect(url_for("equipment.request_detail", rid=rid))
                 repo().update("equipment_request_items", it["id"], {"qty_approved": q})
             repo().update("equipment_requests", rid, {"status": "APPROVED", "decided_by": u["id"], "decided_at": now_iso()})
-            notify(r["requester_id"], "คำขอยืมได้รับอนุมัติ", f"รับอุปกรณ์ได้ {thai_date(r['borrow_at'])}",
-                   url_for("equipment.request_detail", rid=rid), event="EQP_DECISION")
+            eqp_notify(r["requester_id"], "คำขอยืมได้รับอนุมัติ", f"รับอุปกรณ์ได้ {thai_date(r['borrow_at'])}",
+                   url_for("equipment.request_detail", rid=rid))
         audit(f"eqp.request_{action}", "equipment_request", rid, new={"reason": reason})
 
     elif action == "issue":
         # EQP-09 จ่ายอุปกรณ์ บันทึกผู้รับ สแกน/เลือกรายชิ้น ตรวจบัตร
         if not manage or r["status"] != "APPROVED":
             abort(403)
+        if needs_pickup_photo(r):
+            flash("ยังจ่ายอุปกรณ์ไม่ได้: ผู้ยืมต้องถ่ายรูปอุปกรณ์ก่อนยืมในระบบก่อน", "danger")
+            return redirect(link)
         id_checked = bool(request.form.get("id_checked"))
         for it in items:
             m = repo().get("equipment_models", it["model_id"])
@@ -536,11 +666,15 @@ def request_action(rid):
                                                   "receiver_name": request.form.get("receiver_name", "").strip(),
                                                   "id_checked": id_checked})
         audit("eqp.issue", "equipment_request", rid)
+        eqp_notify(r["requester_id"], f"รับอุปกรณ์แล้ว ({code})", f"กำหนดคืน {thai_date(r['due_at'])}", link)
 
     elif action == "return":
         # EQP-10 รับคืน (รองรับคืนบางส่วน) บันทึกสภาพ ชำรุด สูญหาย
         if not manage or r["status"] not in OUT_REQ:
             abort(403)
+        if needs_return_photo(r):
+            flash("ยังรับคืนไม่ได้: ผู้ยืมต้องถ่ายรูปอุปกรณ์ตอนคืนในระบบก่อน (ต้องถ่ายใหม่ทุกครั้งที่คืน)", "danger")
+            return redirect(link)
         before = {it["id"]: outstanding(it) for it in items}
         for it in items:
             m = repo().get("equipment_models", it["model_id"])
@@ -588,7 +722,11 @@ def request_action(rid):
             repo().update("equipment_request_items", it["id"], {k: it.get(k, 0) for k in ("qty_returned", "qty_damaged", "qty_lost")})
         items = items_of(rid)
         done = all(outstanding(it) == 0 for it in items)
-        repo().update("equipment_requests", rid, {"status": "RETURNED" if done else "PARTIAL_RETURNED"})
+        repo().update("equipment_requests", rid, {"status": "RETURNED" if done else "PARTIAL_RETURNED", "last_return_at": now_iso()})
+        for ph in photos_of(rid, "RETURN"):  # รูปชุดนี้ใช้กับการรับคืนครั้งนี้แล้ว ครั้งถัดไปต้องถ่ายใหม่
+            if not ph.get("used"):
+                repo().update("equipment_photos", ph["id"], {"used": True})
+        eqp_notify(r["requester_id"], f"ฝ่ายอุปกรณ์บันทึกรับคืน{'ครบแล้ว' if done else 'บางส่วน'} ({code})", "", link)
         # ค่าปรับคืนล่าช้า: คิดตามจำนวนรายการที่รับคืนในครั้งนี้หลังเลยกำหนด
         lines = sum(1 for it in items if outstanding(it) < before.get(it["id"], 0))
         amount, days = late_fine_amount(r, lines)
@@ -599,12 +737,12 @@ def request_action(rid):
             fid = repo().add("equipment_fines", {"request_id": rid, "user_id": r["requester_id"], "type": "LATE", "amount": amount,
                                                  "status": "PENDING", "recorded_by": u["id"], "created_at": now_iso(),
                                                  "settled_at": None, "note": note, "auto": True})
-            notify(r["requester_id"], "มีค่าปรับคืนอุปกรณ์ล่าช้า", f"{amount:,.2f} บาท ชำระหน้างานที่ฝ่ายอุปกรณ์",
+            eqp_notify(r["requester_id"], "มีค่าปรับคืนอุปกรณ์ล่าช้า", f"{amount:,.2f} บาท ชำระหน้างานที่ฝ่ายอุปกรณ์",
                    url_for("equipment.request_detail", rid=rid))
             audit("eqp.fine_auto_late", "equipment_fine", fid, new={"amount": amount, "days": days, "lines": lines})
             flash(f"คืนล่าช้า {days} วัน ระบบบันทึกค่าปรับ {amount:,.2f} บาทให้แล้ว (แก้ไขหรือยกเว้นได้ที่ส่วนค่าชดใช้)", "warning")
         if done and r.get("is_self_request"):
-            notify_role("ADMIN_VP", "รอยืนยันรับคืน (หัวหน้าฝ่ายอุปกรณ์ยืมเอง)", "", url_for("equipment.request_detail", rid=rid))
+            eqp_notify(list(holders_of_role("ADMIN_VP")), "รอยืนยันรับคืน (หัวหน้าฝ่ายอุปกรณ์ยืมเอง)", "", url_for("equipment.request_detail", rid=rid))
         audit("eqp.return", "equipment_request", rid)
         if any(int(it.get("qty_lost") or 0) or int(it.get("qty_damaged") or 0) for it in items):
             flash("มีรายการชำรุด/สูญหาย กรุณาบันทึกค่าชดใช้ (หรือยกเว้น) ก่อนปิดคำขอ", "warning")
@@ -626,7 +764,7 @@ def request_action(rid):
         fid = repo().add("equipment_fines", {"request_id": rid, "user_id": r["requester_id"], "type": typ, "amount": amount,
                                              "status": "PENDING", "recorded_by": u["id"], "created_at": now_iso(),
                                              "settled_at": None, "note": request.form.get("note", "")})
-        notify(r["requester_id"], "มีค่าชดใช้อุปกรณ์", f"{amount:,.2f} บาท ชำระหน้างานที่ฝ่ายอุปกรณ์",
+        eqp_notify(r["requester_id"], "มีค่าชดใช้อุปกรณ์", f"{amount:,.2f} บาท ชำระหน้างานที่ฝ่ายอุปกรณ์",
                url_for("equipment.request_detail", rid=rid))
         audit("eqp.fine_add", "equipment_fine", fid, new={"amount": amount, "type": typ})
 
@@ -649,6 +787,7 @@ def request_action(rid):
             for d in repo().where("borrower_documents", request_id=rid):
                 repo().update("borrower_documents", d["id"], {"delete_after": to_iso(now() + timedelta(days=days))})
             audit("eqp.close", "equipment_request", rid)
+            eqp_notify(r["requester_id"], f"ปิดรายการยืมแล้ว ({code})", "", link)
             flash("ปิดคำขอแล้ว", "success")
     else:
         abort(400)
@@ -662,13 +801,54 @@ def settle_fine(fid):
     f = repo().get("equipment_fines", fid) or abort(404)
     st = request.form.get("status")
     note = request.form.get("note", "").strip()
-    if st not in ("PAID", "WAIVED") or (st == "WAIVED" and not note):
+    link = url_for("equipment.request_detail", rid=f["request_id"])
+    amount = f"{float(f.get('amount') or 0):,.2f} บาท"
+    if st == "SLIP_REJECT":
+        if not f.get("slip_path") or not note:
+            flash("การตีกลับหลักฐานต้องระบุเหตุผล", "danger")
+        else:
+            delete_file(f["slip_path"])
+            repo().update("equipment_fines", fid, {"slip_path": None, "slip_status": "REJECTED", "slip_reject_reason": note})
+            audit("eqp.slip_reject", "equipment_fine", fid, new={"reason": note})
+            eqp_notify(f["user_id"], "หลักฐานการโอนไม่ผ่าน กรุณาส่งใหม่", note, link)
+    elif st not in ("PAID", "WAIVED") or (st == "WAIVED" and not note):
         flash("การยกเว้นต้องระบุเหตุผล", "danger")
     else:
         repo().update("equipment_fines", fid, {"status": st, "settled_at": form_dt(request.form.get("settled_at")) or now_iso(),
+                                               "slip_status": "CONFIRMED" if st == "PAID" and f.get("slip_path") else f.get("slip_status"),
                                                "note": (f.get("note") or "") + (" | " + note if note else "")})
         audit("eqp.fine_settle", "equipment_fine", fid, new={"status": st, "note": note})
+        eqp_notify(f["user_id"], "ยืนยันรับชำระแล้ว" if st == "PAID" else "ยกเว้นค่าปรับ/ค่าชดใช้ให้แล้ว", amount, link)
     return redirect(request.referrer or url_for("equipment.fines"))
+
+
+@bp.route("/photo/<pid>")
+@login_required
+def photo(pid):
+    ph = repo().get("equipment_photos", pid) or abort(404)
+    if not _can_view_request(_req(ph["request_id"]), current_user()):
+        abort(403)
+    return Response(load_bytes(ph["file_path"]), mimetype=mimetype_for(ph["file_path"]),
+                    headers={"Cache-Control": "private, max-age=3600"})
+
+
+@bp.route("/slip/<fid>")
+@login_required
+def slip(fid):
+    f = repo().get("equipment_fines", fid) or abort(404)
+    if not f.get("slip_path") or not (f.get("user_id") == current_user()["id"] or can("eqp.manage")):
+        abort(403)
+    audit("eqp.slip_view", "equipment_fine", fid)
+    return Response(load_bytes(f["slip_path"]), mimetype=mimetype_for(f["slip_path"]), headers={"Cache-Control": "no-store"})
+
+
+@bp.route("/pay-qr")
+@login_required
+def pay_qr():
+    path = eqp_settings().get("pay_qr_path")
+    if not path:
+        abort(404)
+    return Response(load_bytes(path), mimetype=mimetype_for(path), headers={"Cache-Control": "private, max-age=600"})
 
 
 @bp.route("/fines")
