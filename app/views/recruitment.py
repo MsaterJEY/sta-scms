@@ -295,7 +295,7 @@ def add_session(rid):
             if a and a["round_id"] == rid and a["status"] in ("QUALIFIED", "INTERVIEW") and s:
                 repo().update("member_applications", aid, {"status": "INTERVIEW", "interview_session_id": sid})
                 notify(a["user_id"], "นัดสัมภาษณ์", f"{thai_date(s.get('start_at'))} ที่ {s.get('location')}",
-                       url_for("recruit.detail", rid=rid))
+                       url_for("recruit.detail", rid=rid), event="RECRUIT")
         flash("จัดผู้สมัครเข้ารอบสัมภาษณ์แล้ว", "success")
     else:
         repo().add("interview_sessions", {"round_id": rid, "start_at": form_dt(request.form.get("start_at")),
@@ -436,7 +436,7 @@ def finalize_batch(batch):
             continue
         repo().update("member_applications", res["application_id"], {"status": res["result"]})
         msg = {"PASS": "ผ่านการคัดเลือก กรุณายืนยันสิทธิ์", "RESERVE": "อยู่ในรายชื่อสำรอง", "FAIL": "ไม่ผ่านการคัดเลือก"}[res["result"]]
-        notify(res["user_id"], "ประกาศผลคัดเลือก", msg, url_for("recruit.my"))
+        notify(res["user_id"], "ประกาศผลคัดเลือก", msg, url_for("recruit.my"), event="RECRUIT")
     notify_role("PERSONNEL_HEAD", "ชุดผลคัดเลือกอนุมัติครบแล้ว", "", url_for("recruit.batch_view", bid=batch["id"]))
     audit("recruit.batch_approved", "selection_batch", batch["id"])
 

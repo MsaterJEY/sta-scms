@@ -34,6 +34,11 @@ class Config:
     SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
     SMTP_FROM = os.environ.get("SMTP_FROM", "")
     SITE_URL = os.environ.get("SITE_URL", "")
+    # LINE Official Account (Messaging API) — ไม่ตั้ง = ปิดการแจ้งเตือนทาง LINE
+    LINE_CHANNEL_ACCESS_TOKEN = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN", "")
+    LINE_CHANNEL_SECRET = os.environ.get("LINE_CHANNEL_SECRET", "")
+    LINE_ADD_FRIEND_URL = os.environ.get("LINE_ADD_FRIEND_URL", "")
+    LINE_QUOTA_STOP_PERCENT = float(os.environ.get("LINE_QUOTA_STOP_PERCENT", "90"))
     # ข้อมูลติดต่อและช่องทางติดตามที่แสดงบนแถบบนสุดและ footer (ค่าเริ่มต้นเป็นตัวอย่าง)
     # โมดูลกิจกรรม (SRS v3 ตัดออก ใช้ระบบกิจกรรมของมหาวิทยาลัย) — ตั้ง ACTIVITIES_ENABLED=1 เพื่อเปิดกลับ
     ACTIVITIES_ENABLED = os.environ.get("ACTIVITIES_ENABLED", "") == "1"

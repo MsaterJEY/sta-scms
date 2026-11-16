@@ -4,6 +4,13 @@
 {% block content %}
 {% call m.page_header('สวัสดี ' ~ (me.first_name or ''), 'ตำแหน่งในวาระปัจจุบัน: ' ~ (holdings|map(attribute='position.name')|join(', ') or 'ไม่มี')) %}{% endcall %}
 
+{% if line_banner %}
+<div class="alert alert-success d-flex flex-wrap justify-content-between align-items-center gap-2">
+  <span><i class="bi bi-line me-1"></i><strong>รับแจ้งเตือนทาง LINE</strong> — เช่น ผลคำขอยืมอุปกรณ์ ใกล้ครบกำหนดคืน และคำร้องที่มีผู้ตอบ</span>
+  <span class="d-flex gap-2"><a class="btn btn-sm btn-success" href="{{ url_for('line.settings') }}">ตั้งค่า</a>
+    <form method="post" action="{{ url_for('line.settings') }}">{{ m.csrf() }}<input type="hidden" name="action" value="dismiss"><button class="btn btn-sm btn-outline-secondary">ไม่ต้องแสดงอีก</button></form></span>
+</div>
+{% endif %}
 {% if tasks %}
 <div class="row g-3 mb-4">
   {% if 'approvals' in tasks %}<div class="col-6 col-md-3"><a href="{{ url_for('dashboard.approvals') }}" class="card stat text-decoration-none text-body"><div class="card-body"><div class="small text-secondary">รออนุมัติ</div><div class="num">{{ tasks.approvals }}</div></div></a></div>{% endif %}

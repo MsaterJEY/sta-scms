@@ -42,9 +42,11 @@ def index():
     my_apps = repo().where("member_applications", user_id=u["id"])
     my_staff_apps = repo().where("activity_applications", user_id=u["id"]) if activities_on else []
     my_team_apps = repo().where("team_applications", user_id=u["id"])
+    from .. import line
+    line_banner = line.configured() and not u.get("line_banner_dismissed") and not line.link_of(u["id"])
     notes = sorted(repo().where("notifications", user_id=u["id"]), key=lambda n: n.get("created_at", ""), reverse=True)[:5]
     return render_template("dashboard/index.html", tasks=tasks, my_loans=my_loans, my_hours=my_hours,
-                           my_apps=my_apps, my_staff_apps=my_staff_apps, my_team_apps=my_team_apps, notes=notes, holdings=user_holdings(u["id"]))
+                           my_apps=my_apps, my_staff_apps=my_staff_apps, my_team_apps=my_team_apps, line_banner=line_banner, notes=notes, holdings=user_holdings(u["id"]))
 
 
 @bp.route("/notifications", methods=["GET", "POST"])

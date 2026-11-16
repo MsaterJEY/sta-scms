@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}แจ้งเตือนทาง LINE{% endblock %}
+
+{% macro event_checks(checked_all) %}
+{% for code, ev in events.items() %}
+<div class="form-check"><input class="form-check-input" type="checkbox" name="ev_{{ code }}" id="ev{{ code }}" {% if checked_all or prefs.get(code) %}checked{% endif %}>
+  <label class="form-check-label" for="ev{{ code }}">{{ ev[0] }}</label></div>
+{% endfor %}
+{% endmacro %}
+
+{% block content %}
+{% call m.page_header('แจ้งเตือนทาง LINE', 'ช่องทางเสริม — แจ้งเตือนในระบบยังเป็นช่องทางหลัก ไม่เชื่อม LINE ก็ใช้งานได้ครบ') %}
+<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('dashboard.notifications') }}">การแจ้งเตือนในระบบ</a>
+{% endcall %}
+
+{% if not configured %}
+<div class="alert alert-secondary">ระบบยังไม่ได้เปิดใช้การแจ้งเตือนทาง LINE</div>
+{% else %}
+<div class="row g-3">
+<div class="col-lg-7">
+  {% if link and link.status == 'ACTIVE' %}
+  <div class="card mb-3 border-success"><div class="card-body">
+    <div class="d-flex justify-content-between align-items-center mb-3"><div><span class="badge text-bg-success">ผูกบัญชีแล้ว</span> <span class="small text-secondary">เมื่อ {{ link.linked_at|thaidate }}</span></div></div>
+    <form method="post">{{ m.csrf() }}<input type="hidden" name="action" value="prefs">
+      <div class="fw-semibold mb-2">เลือกประเภทที่ต้องการรับทาง LINE</div>
+      {{ event_checks(false) }}
+      <button class="btn btn-sta mt-3">บันทึก</button></form>
+    <hr>
+    <form method="post" data-confirm="ยกเลิกการผูกบัญชี LINE? ระบบจะลบรหัสผู้ใช้ LINE ของคุณ">{{ m.csrf() }}<input type="hidden" name="action" value="unlink">
+      <button class="btn btn-sm btn-outline-danger">ยกเลิกการผูกบัญชี LINE</button></form>
+  </div></div>
+  {% else %}
+  {% if link and link.status == 'BLOCKED' %}<div class="alert alert-warning small">คุณบล็อกบัญชี LINE ของสโมสรไว้ ระบบจึงส่งแจ้งเตือนทาง LINE ไม่ได้ ปลดบล็อกในแอป LINE เพื่อกลับมารับ หรือกดยกเลิกการผูกบัญชี
+    <form method="post" class="mt-2">{{ m.csrf() }}<input type="hidden" name="action" value="unlink"><button class="btn btn-sm btn-outline-danger">ยกเลิกการผูกบัญชี LINE</button></form></div>{% endif %}
+  <div class="card mb-3"><div class="card-header">ขั้นตอนผูกบัญชี</div><div class="card-body">
+    <ol class="mb-3">
+      <li>เพิ่มเพื่อนบัญชี LINE ของสโมสร{% if config.LINE_ADD_FRIEND_URL %} (ปุ่มหรือ QR ด้านขวา){% endif %}</li>
+      <li>กด "ขอรหัสผูกบัญชี" ด้านล่าง</li>
+      <li>ส่งรหัส 6 หลักในแชตของบัญชี LINE นั้นภายใน 10 นาที</li>
+    </ol>
+    {% if code %}
+    <div class="alert alert-success text-center"><div class="small text-secondary">รหัสผูกบัญชี (ใช้ได้ครั้งเดียว ถึง {{ code.expires }})</div>
+      <div class="display-6 fw-bold font-monospace">{{ code.value }}</div>
+      <div class="small">ส่งรหัสนี้ในแชต LINE ของสโมสร แล้วโหลดหน้านี้ใหม่เพื่อดูสถานะ</div></div>
+    {% endif %}
+    <form method="post">{{ m.csrf() }}<input type="hidden" name="action" value="code">
+      <div class="fw-semibold mb-2">เลือกประเภทที่ต้องการรับทาง LINE</div>
+      {{ event_checks(not prefs) }}
+      <div class="form-check mt-3"><input class="form-check-input" type="checkbox" name="consent" id="lc" required>
+        <label class="form-check-label small" for="lc">ยินยอมให้ระบบเก็บรหัสผู้ใช้ LINE ของฉันเพื่อส่งแจ้งเตือนของระบบเท่านั้น ยกเลิกได้ทุกเมื่อ และระบบจะลบข้อมูลนี้เมื่อยกเลิกการผูก</label></div>
+      <button class="btn btn-sta mt-3">{{ 'ขอรหัสใหม่' if code else 'ขอรหัสผูกบัญชี' }}</button></form>
+  </div></div>
+  {% endif %}
+  <div class="small text-secondary">ข้อความทาง LINE จะสั้นและไม่มีข้อมูลอ่อนไหว (ไม่มีเนื้อหาคำร้อง คะแนน หรือเกรด) มีเพียงประเภทเหตุการณ์และลิงก์เข้าระบบ · เรื่องร้องเรียนนิรนามไม่มีการแจ้งเตือนทาง LINE</div>
+</div>
+<div class="col-lg-5">
+  {% if config.LINE_ADD_FRIEND_URL %}
+  <div class="card mb-3 text-center"><div class="card-header">เพิ่มเพื่อนบัญชี LINE ของสโมสร</div><div class="card-body">
+    <div id="lineQr" class="d-inline-block mb-3"></div>
+    <div><a class="btn btn-success" href="{{ config.LINE_ADD_FRIEND_URL }}" target="_blank" rel="noopener"><i class="bi bi-line me-1"></i>เพิ่มเพื่อน</a></div>
+  </div></div>
+  {% endif %}
+  {% if quota %}
+  <div class="card"><div class="card-header">โควตาข้อความเดือนนี้ (ผู้ดูแลระบบ)</div><div class="card-body small">
+    {% if quota.limit %}ใช้ไป <strong>{{ quota.used }}</strong> จาก <strong>{{ quota.limit }}</strong> ข้อความ
+      {% if quota.blocked %}<div class="text-danger mt-1">โควตาใกล้เต็ม ระบบหยุดส่งทาง LINE และใช้อีเมลแทน</div>{% endif %}
+    {% elif quota.used is not none %}ใช้ไป <strong>{{ quota.used }}</strong> ข้อความ (แพ็กเกจไม่จำกัดจำนวน)
+    {% else %}ยังอ่านโควตาจาก LINE ไม่ได้ ตรวจสอบ Channel access token{% endif %}
+    <div class="text-secondary mt-1">ตรวจล่าสุด {{ quota.checked_at|thaidate if quota.checked_at else '-' }}</div>
+  </div></div>
+  {% endif %}
+</div>
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+{% if configured and config.LINE_ADD_FRIEND_URL and not (link and link.status == 'ACTIVE') %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>new QRCode(document.getElementById('lineQr'), { text: {{ config.LINE_ADD_FRIEND_URL|tojson }}, width: 180, height: 180 });</script>
+{% endif %}
+{% endblock %}

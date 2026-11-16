@@ -676,6 +676,103 @@ with app.app_context():
     check(migrate_v3(2569)["holders_moved"] == 0, "migration is repeatable")
     r_.delete("team_positions", tp_old)
 
+    print("== LINE OA notifications (NTF-02..09, simulated LINE API)")
+    import base64, hashlib, hmac as _hmac, json as _json
+    from app import line as line_mod
+    check(stu.get("/line/settings").status_code == 200 and "ยังไม่ได้เปิดใช้" in stu.get("/line/settings").get_data(as_text=True),
+          "LINE settings page explains when LINE is off")
+    check(app.test_client().post("/line/webhook", data="{}").status_code == 404, "webhook closed when LINE is not configured")
+    sent, quota = [], {"limit": 200, "used": 10, "push_status": 200}
+
+    def fake_line(method, path, payload):
+        if path == "/message/quota":
+            return 200, {"type": "limited", "value": quota["limit"]}
+        if path == "/message/quota/consumption":
+            return 200, {"totalUsage": quota["used"]}
+        sent.append((path, payload))
+        return (quota["push_status"] if path == "/message/push" else 200), {}
+
+    app.config.update(LINE_CHANNEL_ACCESS_TOKEN="tok", LINE_CHANNEL_SECRET="sec", LINE_ADD_FRIEND_URL="https://line.me/R/ti/p/@demo",
+                      LINE_TRANSPORT=fake_line, SITE_URL="https://sta.example")
+
+    def hook(events, secret="sec"):
+        raw = _json.dumps({"events": events}).encode()
+        sig = base64.b64encode(_hmac.new(secret.encode(), raw, hashlib.sha256).digest()).decode()
+        return app.test_client().post("/line/webhook", data=raw, headers={"X-Line-Signature": sig, "Content-Type": "application/json"})
+
+    def say(text, who="Ustu"):
+        return hook([{"type": "message", "replyToken": "rt", "source": {"userId": who}, "message": {"type": "text", "text": text}}])
+
+    check(hook([], secret="wrong").status_code == 401, "webhook rejects a bad signature")
+    check("รับแจ้งเตือนทาง LINE" in stu.get("/app/").get_data(as_text=True), "dashboard shows LINE banner")
+    stu.post("/line/settings", data={"action": "code", "ev_EQP_DECISION": "1"})
+    check(not repo().all("line_link_codes"), "link code needs PDPA consent")
+    r = stu.post("/line/settings", data={"action": "code", "consent": "1", "ev_EQP_DECISION": "1", "ev_TICKET_REPLY": "1"}, follow_redirects=True)
+    code = re.search(r"font-monospace\">(\d{6})<", r.get_data(as_text=True)).group(1)
+    stored = repo().all("line_link_codes")[0]
+    check(code not in str(stored) and stored["user_id"] == stu_id, "link code stored as hash only")
+    check(code not in ph.get("/line/settings").get_data(as_text=True), "code shown only in the requesting session")
+    say("000000" if code != "000000" else "111111")
+    check(not line_mod.link_of(stu_id) and "ไม่ถูกต้อง" in sent[-1][1]["messages"][0]["text"], "wrong code is refused by reply")
+    for _ in range(5):
+        say("999999" if code != "999999" else "888888", who="Uattacker")
+    say(code, who="Uattacker")
+    check(not line_mod.link_of(stu_id), "LINE account locked after repeated wrong codes")
+    say(code)
+    lk = line_mod.link_of(stu_id)
+    check(lk and lk["line_user_id"] == "Ustu" and lk["status"] == "ACTIVE" and sent[-1][0] == "/message/reply", "code in chat links the account, confirmed by reply")
+    check(not repo().all("line_link_codes"), "code is single use")
+    check("ผูกบัญชีแล้ว" in stu.get("/line/settings").get_data(as_text=True) and "รับแจ้งเตือนทาง LINE</strong>" not in stu.get("/app/").get_data(as_text=True),
+          "settings show linked state and banner disappears")
+    sent.clear()
+    from app.services import notify as _notify
+    with app.test_request_context():
+        _notify(stu_id, "คำขอยืมได้รับอนุมัติ", "ข้อความลับภายใน", "/equipment/requests/1", event="EQP_DECISION")
+        _notify(stu_id, "ผลคัดเลือก", "x", "/recruit/my", event="RECRUIT")
+    pushes = [x for x in sent if x[0] == "/message/push"]
+    check(len(pushes) == 1 and pushes[0][1]["to"] == "Ustu", "push only for event types the user opted into")
+    txt = pushes[0][1]["messages"][0]["text"]
+    check("ข้อความลับภายใน" not in txt and "https://sta.example/equipment/requests/1" in txt, "LINE text is generic with a link, no item content")
+    check(repo().where("notification_deliveries", user_id=stu_id, status="SENT"), "delivery recorded")
+    say("เช็กสถานะคำขอยืม")
+    check("คำขอยืม" in sent[-1][1]["messages"][0]["text"] and sent[-1][0] == "/message/reply", "rich menu answered by reply")
+    say("คำร้องของฉัน", who="Unobody")
+    check("ยังไม่ได้ผูกบัญชี" in sent[-1][1]["messages"][0]["text"], "menu asks unlinked LINE users to link first")
+    # โควตาใกล้เต็ม -> หยุดส่ง ใช้อีเมลแทน และแจ้งผู้ดูแลระบบ
+    quota["used"] = 185
+    repo().delete("system_settings", "line_quota")
+    sent.clear()
+    with app.test_request_context():
+        _notify(stu_id, "คำขอยืมถูกปฏิเสธ", "x", "/equipment/requests/1", event="EQP_DECISION")
+    check(not [x for x in sent if x[0] == "/message/push"] and repo().where("notification_deliveries", user_id=stu_id, status="FAILED", error="quota"),
+          "stops pushing when quota is nearly used")
+    check(any("โควตา" in n["title"] for n in repo().all("notifications")), "admin warned about LINE quota")
+    check("185" in admin.get("/line/settings").get_data(as_text=True), "admin sees quota usage")
+    quota["used"] = 10
+    repo().delete("system_settings", "line_quota")
+    # ผู้ใช้บล็อก OA
+    hook([{"type": "unfollow", "source": {"userId": "Ustu"}}])
+    check(line_mod.link_of(stu_id)["status"] == "BLOCKED" and not line_mod.wants(stu_id, "EQP_DECISION"), "blocking the OA deactivates the link")
+    hook([{"type": "follow", "replyToken": "rt", "source": {"userId": "Ustu"}}])
+    check(line_mod.link_of(stu_id)["status"] == "ACTIVE", "unblocking reactivates the link")
+    # เรื่องนิรนามไม่แจ้งทาง LINE
+    sent.clear()
+    psec.post(f"/tickets/{t2['id']}/action", data={"action": "message", "body": "x", "is_internal": "1"})
+    check(not [x for x in sent if x[0] == "/message/push"], "anonymous tickets never push to LINE")
+    # สรุปรายการรออนุมัติ
+    repo().set("line_links", avp_id, {"user_id": avp_id, "line_user_id": "Uavp", "status": "ACTIVE", "linked_at": "x"})
+    repo().set("notification_preferences", avp_id, {"line": {"APPROVAL": True}})
+    rq = repo().add("approval_requests", {"flow_code": "REC_FINAL", "subject_type": "t", "subject_id": "1", "title": "ทดสอบ", "link": "/",
+                                          "status": "PENDING", "cycle": 1, "requested_by": None, "created_at": "x"})
+    sent.clear()
+    app.test_client().get("/cron/daily", headers={"Authorization": "Bearer cron"})
+    dig = [x for x in sent if x[0] == "/message/push" and x[1]["to"] == "Uavp"]
+    check(len(dig) == 1 and "รออนุมัติ" in dig[0][1]["messages"][0]["text"], "approvers get one daily digest message")
+    repo().delete("approval_requests", rq)
+    stu.post("/line/settings", data={"action": "unlink"})
+    check(not line_mod.link_of(stu_id) and not repo().get("notification_preferences", stu_id), "unlink deletes LINE user id and preferences")
+    app.config.update(LINE_CHANNEL_ACCESS_TOKEN="", LINE_CHANNEL_SECRET="", LINE_TRANSPORT=None)
+
     print("== admin menu access")
     asec_c = client_for("406765004")
     check("ผู้ถือตำแหน่งตามวาระ" in get_ok(asec_c, "/admin/holders", "holders as ADMIN_SEC").get_data(as_text=True), "ADMIN_SEC uses holders page")

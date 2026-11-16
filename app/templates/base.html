@@ -125,6 +125,7 @@
             <li><a class="dropdown-item" href="{{ url_for('dashboard.index') }}">หน้าของฉัน</a></li>
             <li><a class="dropdown-item" href="{{ url_for('team.my') }}">ใบสมัครทีมงานของฉัน</a></li>
             <li><a class="dropdown-item" href="{{ url_for('auth.profile') }}">ข้อมูลของฉัน</a></li>
+            {% if config.LINE_CHANNEL_ACCESS_TOKEN and config.LINE_CHANNEL_SECRET %}<li><a class="dropdown-item" href="{{ url_for('line.settings') }}">แจ้งเตือนทาง LINE</a></li>{% endif %}
             <li><hr class="dropdown-divider"></li>
             <li>
               <form method="post" action="{{ url_for('auth.logout') }}">

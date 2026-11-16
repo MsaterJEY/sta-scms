@@ -383,7 +383,7 @@ def request_action(rid):
                 return redirect(url_for("equipment.request_detail", rid=rid))
             repo().update("equipment_requests", rid, {"status": "REJECTED", "reject_reason": reason, "decided_by": u["id"],
                                                       "decided_at": now_iso()})
-            notify(r["requester_id"], "คำขอยืมถูกปฏิเสธ", reason, url_for("equipment.request_detail", rid=rid))
+            notify(r["requester_id"], "คำขอยืมถูกปฏิเสธ", reason, url_for("equipment.request_detail", rid=rid), event="EQP_DECISION")
         else:
             models = {m["id"]: m for m in repo().all("equipment_models")}
             for it in items:
@@ -396,7 +396,7 @@ def request_action(rid):
                 repo().update("equipment_request_items", it["id"], {"qty_approved": q})
             repo().update("equipment_requests", rid, {"status": "APPROVED", "decided_by": u["id"], "decided_at": now_iso()})
             notify(r["requester_id"], "คำขอยืมได้รับอนุมัติ", f"รับอุปกรณ์ได้ {thai_date(r['borrow_at'])}",
-                   url_for("equipment.request_detail", rid=rid))
+                   url_for("equipment.request_detail", rid=rid), event="EQP_DECISION")
         audit(f"eqp.request_{action}", "equipment_request", rid, new={"reason": reason})
 
     elif action == "issue":
@@ -680,10 +680,10 @@ def daily_equipment_jobs():
         if r.get("status") in OUT_REQ and due:
             if due < t:
                 notify([r["requester_id"], *heads], "อุปกรณ์เกินกำหนดคืน", r.get("tracking_code"),
-                       url_for("equipment.request_detail", rid=r["id"]))
+                       url_for("equipment.request_detail", rid=r["id"]), event="EQP_DUE")
             elif due - t < timedelta(days=1):
                 notify(r["requester_id"], "ใกล้ครบกำหนดคืนอุปกรณ์", thai_date(r.get("due_at")),
-                       url_for("equipment.request_detail", rid=r["id"]))
+                       url_for("equipment.request_detail", rid=r["id"]), event="EQP_DUE")
     removed = 0
     for d in repo().all("borrower_documents"):
         da = parse_dt(d.get("delete_after"))

@@ -3,6 +3,7 @@
 {% block title %}แจ้งเตือน{% endblock %}
 {% block content %}
 {% call m.page_header('การแจ้งเตือน') %}
+{% if config.LINE_CHANNEL_ACCESS_TOKEN and config.LINE_CHANNEL_SECRET %}<a class="btn btn-sm btn-outline-success" href="{{ url_for('line.settings') }}"><i class="bi bi-line"></i> แจ้งเตือนทาง LINE</a>{% endif %}
 <form method="post">{{ m.csrf() }}<button class="btn btn-sm btn-outline-secondary">อ่านทั้งหมด</button></form>
 {% endcall %}
 <div class="card"><ul class="list-group list-group-flush">

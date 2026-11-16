@@ -327,7 +327,8 @@ def action(tid):
                 new_status = request.form.get("new_status") if request.form.get("new_status") in ("IN_PROGRESS", "WAITING_INFO", "ANSWERED") else "ANSWERED"
                 _status_log(t, new_status)
                 repo().update("tickets", tid, {"status": new_status})
-                notify(t.get("submitter_id"), "คำร้องของคุณมีการตอบกลับ", t["title"], link)
+                # เรื่องนิรนามไม่มี submitter_id จึงไม่มีการแจ้งเตือนทาง LINE (TKT-22)
+                notify(t.get("submitter_id"), "คำร้องของคุณมีการตอบกลับ", t["title"], link, event="TICKET_REPLY")
                 _log_access(t, "REPLY")
         else:
             abort(403)

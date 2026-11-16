@@ -38,7 +38,9 @@ def audit(action, entity_type, entity_id=None, old=None, new=None, note=None, ac
 
 
 # ---------- แจ้งเตือน (NTF-01) ----------
-def notify(user_ids, title, body="", link=None, email=False):
+def notify(user_ids, title, body="", link=None, email=False, event=None):
+    """event: ประเภทเหตุการณ์ที่ส่งทาง LINE ได้ (ดู line.EVENTS) — ข้อความ LINE ไม่มี title/body ของรายการ"""
+    from . import line
     if not user_ids:
         return
     if isinstance(user_ids, str):
@@ -48,10 +50,13 @@ def notify(user_ids, title, body="", link=None, email=False):
             "user_id": uid, "title": title, "body": body, "link": link,
             "is_read": False, "created_at": now_iso(),
         })
-        if email:
+        fallback = line.deliver(uid, event, link) == "FAILED" if event else False
+        if email or fallback:
             u = repo().get("users", uid)
             if u and u.get("email"):
-                send_email(u["email"], title, f"{body}\n\n{(current_app.config.get('SITE_URL') or '') + (link or '')}")
+                sent = send_email(u["email"], title, f"{body}\n\n{(current_app.config.get('SITE_URL') or '') + (link or '')}")
+                if fallback:
+                    line._log(uid, event, "EMAIL", "FALLBACK" if sent else "FAILED", None if sent else "smtp")
 
 
 def notify_role(role, title, body="", link=None, exclude=None):
