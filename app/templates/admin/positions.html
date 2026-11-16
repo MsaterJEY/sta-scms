@@ -54,6 +54,9 @@
     <div class="form-text">ใช้เตรียมผังของวาระถัดไป แล้วแก้ รวม แยก หรือเปลี่ยนชื่อฝ่ายได้โดยไม่กระทบวาระปัจจุบัน</div></div></div>
   <div class="card"><div class="card-header">กอง</div><ul class="list-group list-group-flush">
     {% for d in divs %}<li class="list-group-item small">{{ d.code }} — {{ d.name }}</li>{% endfor %}</ul>
+    <div class="card-body border-bottom"><form method="post">{{ m.csrf() }}<input type="hidden" name="action" value="seed_defaults"><input type="hidden" name="year" value="{{ year }}">
+      <button class="btn btn-sm btn-outline-secondary">เพิ่มกอง/ตำแหน่งตั้งต้นที่ยังไม่มี</button></form>
+      <div class="form-text">ใช้หลังอัปเดตระบบ เพื่อเพิ่มกองและตำแหน่งกรรมการ/อนุกรรมการที่มากับรุ่นใหม่ ไม่แก้ข้อมูลที่มีอยู่</div></div>
     <div class="card-body"><form method="post" class="d-flex gap-2">{{ m.csrf() }}<input type="hidden" name="action" value="division"><input type="hidden" name="year" value="{{ year }}">
       <input class="form-control form-control-sm" name="code" placeholder="รหัส" required><input class="form-control form-control-sm" name="name" placeholder="ชื่อกอง" required><button class="btn btn-sm btn-sta">เพิ่ม</button></form></div></div>
 </div></div>

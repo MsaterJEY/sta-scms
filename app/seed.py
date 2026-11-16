@@ -35,6 +35,8 @@ DIVISIONS = [
     ("ACTIVITY", "กองกิจกรรม"),
     ("PR", "กองประชาสัมพันธ์"),
     ("POLICY", "กองแผนและนโยบาย"),
+    # กองเลขา: กรรมการ/อนุกรรมการฝ่ายเอกสาร (ไม่มีตำแหน่งระดับบอร์ดของกองเอง)
+    ("SECRETARY", "กองเลขา"),
 ]
 
 # (code, name, division, function_code, parent, single_holder, locked_required) — ระดับ BOARD ทั้งหมด 23 ตำแหน่ง

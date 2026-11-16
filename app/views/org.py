@@ -14,7 +14,7 @@ from ..storage import UploadError, delete_file, load_bytes, mimetype_for, save_b
 from ..utils import now_iso, sort_thai
 
 bp = Blueprint("org", __name__, url_prefix="/org")
-DIVISION_ORDER = ["ADMIN", "ACTIVITY", "PR", "POLICY"]
+DIVISION_ORDER = ["ADMIN", "SECRETARY", "ACTIVITY", "PR", "POLICY"]
 LEVEL_ORDER = {"BOARD": 0, "COMMITTEE": 1, "SUBCOMMITTEE": 2, "STAFF": 3}
 LEVEL_LABELS = {"BOARD": "คณะกรรมการบริหาร", "COMMITTEE": "กรรมการ", "SUBCOMMITTEE": "อนุกรรมการ", "STAFF": "อาจารย์ที่ปรึกษา"}
 

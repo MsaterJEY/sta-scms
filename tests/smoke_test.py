@@ -562,8 +562,13 @@ with app.app_context():
     from app.seed import migrate_v3, run_seed
     run_seed(2569)
     board = [p for p in repo().all("positions") if p.get("level") == "BOARD"]
-    check(len(board) == 23 and len(repo().all("divisions")) == 4 and len(repo().all("positions")) == 32,
-          "seed is idempotent: 23 board positions, 4 divisions")
+    check(len(board) == 23 and len(repo().all("divisions")) == 5 and len(repo().all("positions")) == 34,
+          "seed is idempotent: 23 board positions, 5 divisions")
+    check(repo().get("divisions", "SECRETARY")["name"] == "กองเลขา" and repo().get("positions", "SUB_SECRETARY")["level"] == "SUBCOMMITTEE",
+          "secretary division has committee and subcommittee positions")
+    repo().delete("divisions", "SECRETARY"); repo().delete("positions", "COMM_SECRETARY"); repo().delete("positions", "SUB_SECRETARY")
+    admin.post("/admin/positions", data={"action": "seed_defaults", "year": 2569})
+    check(repo().get("divisions", "SECRETARY") and repo().get("positions", "COMM_SECRETARY"), "admin can add missing default divisions/positions")
     check(all(p.get("academic_year") == 2569 and "function_code" in p for p in board), "board chart bound to year with function codes")
     # สิทธิ์สำรองเมื่อตำแหน่งบุคลากรว่าง
     avp_id = repo().where("users", student_code="406765003")[0]["id"]

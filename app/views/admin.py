@@ -262,6 +262,14 @@ def positions():
                 audit("position.copy_chart", "academic_year", str(to), new={"from": year, "count": len(src)})
                 flash(f"คัดลอกผัง {len(src)} ตำแหน่งจากปี {year} ไปปี {to} แล้ว", "success")
                 year = to
+        elif action == "seed_defaults":
+            # เพิ่มกอง/ตำแหน่งตั้งต้นที่ยังไม่มี (เช่น กองที่เพิ่มในรุ่นใหม่) ไม่แก้ของที่มีอยู่แล้ว
+            from ..seed import run_seed
+            before = (len(repo().all("divisions")), len(repo().all("positions")))
+            run_seed(current_year())
+            after = (len(repo().all("divisions")), len(repo().all("positions")))
+            audit("system.seed_defaults", "system_settings", "seed_info", new={"divisions": after[0] - before[0], "positions": after[1] - before[1]})
+            flash(f"เพิ่มกอง {after[0] - before[0]} กอง และตำแหน่ง {after[1] - before[1]} ตำแหน่งที่ยังไม่มี", "success")
         elif action == "migrate_v3":
             from ..seed import migrate_v3
             done = migrate_v3(current_year())
