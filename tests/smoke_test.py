@@ -896,6 +896,17 @@ with app.app_context():
     asec.post("/admin/roster/", data={"action": "upload", "year": 2569, "member_type": "COMM", "file": (io.BytesIO(b"not excel"), "x.xlsx")},
               content_type="multipart/form-data")
     check(not repo().all("roster_imports"), "broken file rejected")
+    mv = get_ok(pres, "/members/", "members summary as board").get_data(as_text=True)
+    check("กองแผนและนโยบาย" in mv and "406765555" in mv and "รวมทั้งหมด" in mv, "summary lists roster members grouped by division")
+    check("406765555" not in pres.get("/members/?division=POLICY").get_data(as_text=True)
+          and "406765555" in pres.get("/members/?division=PR&type=SUBCOMM").get_data(as_text=True), "summary filters by division and type")
+    check("นำเข้า/แก้ไขทะเบียน" not in mv and "นำเข้า/แก้ไขทะเบียน" in asec.get("/members/").get_data(as_text=True),
+          "only roster managers see the import link")
+    check(newc.get("/members/").status_code == 403 and app.test_client().get("/members/").status_code == 302,
+          "subcommittee members and guests cannot view the summary")
+    r = pres.get("/export/members_summary?fmt=tsv&year=2569")
+    check(r.status_code == 200 and "406765555" in r.get_data(as_text=True) and newc.get("/export/members_summary?fmt=tsv").status_code == 403,
+          "summary export follows the same permission")
     asec.post("/admin/roster/", data={"action": "delete", "year": 2569, "roster_id": ros["406865010"]["id"]})
     check(not repo().where("position_holders", user_id=stu_id, position_id="SUB_ACTIVITY", status="ACTIVE"), "removing from roster ends that position")
     asec.post("/admin/roster/", data={"action": "clear", "year": 2569, "member_type": "COMM"})

@@ -25,6 +25,7 @@ def create_app(config_object=Config, **overrides):
     for mod in (public, auth, dashboard, admin, recruitment, activities, team, equipment, tickets,
                 announcements, documents, reports, cron, line_view, org, roster):
         app.register_blueprint(mod.bp)
+    app.register_blueprint(roster.members_bp)
     csrf.exempt(line_view.webhook)  # LINE เรียกเข้ามาเอง ตรวจด้วยลายเซ็นแทน CSRF
     app.register_blueprint(exports.bp)
     csrf.exempt(cron.bp)

@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}สรุปรายชื่อกรรมการ/อนุกรรมการ{% endblock %}
+{% block content %}
+{% call m.page_header('สรุปรายชื่อกรรมการ/อนุกรรมการ ปี ' ~ year, 'รวมจากทะเบียนที่นำเข้าและผู้ถือตำแหน่งในระบบ · ดูได้อย่างเดียว') %}
+<form class="d-print-none"><select class="form-select form-select-sm" name="year" aria-label="ปีการศึกษา" onchange="this.form.submit()">{% for y in years %}<option value="{{ y.id }}" {% if y.id|int == year %}selected{% endif %}>{{ y.id }}</option>{% endfor %}</select></form>
+<span class="d-print-none">{{ m.export_buttons('members_summary', dict(args.to_dict(), year=year)) }}</span>
+<button class="btn btn-sm btn-outline-secondary d-print-none" type="button" onclick="window.print()"><i class="bi bi-printer"></i> พิมพ์</button>
+{% if can('admin.holders') %}<a class="btn btn-sm btn-sta d-print-none" href="{{ url_for('roster.index', year=year) }}"><i class="bi bi-upload"></i> นำเข้า/แก้ไขทะเบียน</a>{% endif %}
+{% endcall %}
+
+<div class="card mb-4"><div class="card-header">จำนวนแยกตามกอง</div>
+  <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+    <thead><tr><th>กอง</th><th class="text-end">กรรมการ</th><th class="text-end">อนุกรรมการ</th><th class="text-end">รวม</th><th class="d-print-none"></th></tr></thead><tbody>
+    {% for s in summary %}
+    <tr><td>{{ s.name }}</td><td class="text-end">{{ s.COMM }}</td><td class="text-end">{{ s.SUBCOMM }}</td><td class="text-end fw-semibold">{{ s.COMM + s.SUBCOMM }}</td>
+      <td class="text-end d-print-none">{% if s.id %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('members.index', year=year, division=s.id) }}">ดูรายชื่อ</a>{% endif %}</td></tr>
+    {% endfor %}
+    <tr class="fw-semibold"><td>รวมทั้งหมด</td><td class="text-end">{{ total.COMM }}</td><td class="text-end">{{ total.SUBCOMM }}</td><td class="text-end">{{ total.COMM + total.SUBCOMM }}</td><td class="d-print-none"></td></tr>
+    </tbody></table></div></div>
+
+<form class="row g-2 mb-3 d-print-none"><input type="hidden" name="year" value="{{ year }}">
+  <div class="col-12 col-md-4"><input class="form-control" name="q" value="{{ args.get('q', '') }}" placeholder="รหัสนักศึกษา / ชื่อ"></div>
+  <div class="col-6 col-md-3"><select class="form-select" name="division"><option value="">ทุกกอง</option>{% for d in division_list %}<option value="{{ d.id }}" {% if args.get('division') == d.id %}selected{% endif %}>{{ d.name }}</option>{% endfor %}</select></div>
+  <div class="col-6 col-md-3"><select class="form-select" name="type"><option value="">กรรมการและอนุกรรมการ</option>{% for k, t in types.items() %}<option value="{{ k }}" {% if args.get('type') == k %}selected{% endif %}>{{ t[0] }}</option>{% endfor %}</select></div>
+  <div class="col-12 col-md-2 d-grid"><button class="btn btn-sta">กรอง</button></div>
+</form>
+
+{% for g in groups %}
+<div class="card mb-3"><div class="card-header d-flex justify-content-between"><span>{{ g.name }}</span><span class="text-secondary fw-normal small">{{ g.rows|length }} คน</span></div>
+  <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+    <thead><tr><th style="width:3rem">ที่</th><th>รหัสนักศึกษา</th><th>ชื่อ-นามสกุล</th><th>ประเภท</th><th>ฝ่าย</th><th>สาขาวิชา</th><th>ชั้นปี</th><th class="d-print-none">บัญชี</th></tr></thead><tbody>
+    {% for r in g.rows %}
+    <tr><td>{{ loop.index }}</td><td>{{ r.student_code or '-' }}</td><td>{{ r.first_name }} {{ r.last_name }}</td>
+      <td><span class="badge text-bg-{{ 'success' if r.member_type == 'COMM' else 'info' }}">{{ types[r.member_type][0] }}</span></td>
+      <td class="small">{{ r.unit or '-' }}</td><td class="small">{{ r.program or '-' }}</td><td>{{ r.year_level or '-' }}</td>
+      <td class="d-print-none">{% if r.user_id %}<span class="badge text-bg-success">มีบัญชีแล้ว</span>{% else %}<span class="badge text-bg-warning">รอสมัครสมาชิก</span>{% endif %}</td></tr>
+    {% endfor %}
+    </tbody></table></div></div>
+{% else %}
+<div class="card"><div class="card-body">{{ m.empty('ไม่พบรายชื่อตามเงื่อนไข') }}</div></div>
+{% endfor %}
+{% endblock %}

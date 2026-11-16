@@ -4,6 +4,7 @@
 {% block content %}
 {% call m.page_header('ทะเบียนกรรมการ/อนุกรรมการ ปี ' ~ year, 'นำเข้าจากไฟล์ที่ดาวน์โหลดจาก Google Sheet — คนที่ยังไม่มีบัญชีจะได้ตำแหน่งเองเมื่อสมัครสมาชิก') %}
 <form><select class="form-select form-select-sm" name="year" aria-label="ปีการศึกษา" onchange="this.form.submit()">{% for y in years %}<option value="{{ y.id }}" {% if y.id|int == year %}selected{% endif %}>{{ y.id }}</option>{% endfor %}</select></form>
+<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('members.index', year=year) }}">ดูสรุปตามกอง</a>
 {{ m.export_buttons('member_roster', dict(args.to_dict(), year=year)) }}
 {% endcall %}
 <div class="row g-3 mb-3">
@@ -15,8 +16,9 @@
 <div class="row g-3">
 <div class="col-lg-8">
   <form class="row g-2 mb-3"><input type="hidden" name="year" value="{{ year }}">
-    <div class="col-12 col-md-4"><input class="form-control" name="q" value="{{ args.get('q', '') }}" placeholder="รหัสนักศึกษา / ชื่อ"></div>
-    <div class="col-6 col-md-3"><select class="form-select" name="type"><option value="">ทุกประเภท</option>{% for k, t in types.items() %}<option value="{{ k }}" {% if args.get('type') == k %}selected{% endif %}>{{ t[0] }}</option>{% endfor %}</select></div>
+    <div class="col-12 col-md-3"><input class="form-control" name="q" value="{{ args.get('q', '') }}" placeholder="รหัสนักศึกษา / ชื่อ"></div>
+    <div class="col-6 col-md-2"><select class="form-select" name="type"><option value="">ทุกประเภท</option>{% for k, t in types.items() %}<option value="{{ k }}" {% if args.get('type') == k %}selected{% endif %}>{{ t[0] }}</option>{% endfor %}</select></div>
+    <div class="col-6 col-md-2"><select class="form-select" name="division"><option value="">ทุกกอง</option>{% for d in divisions.values() %}<option value="{{ d.id }}" {% if args.get('division') == d.id %}selected{% endif %}>{{ d.name }}</option>{% endfor %}</select></div>
     <div class="col-6 col-md-3"><select class="form-select" name="link"><option value="">ทุกสถานะบัญชี</option><option value="pending" {% if args.get('link') == 'pending' %}selected{% endif %}>รอสมัครสมาชิก</option></select></div>
     <div class="col-12 col-md-2 d-grid"><button class="btn btn-sta">กรอง</button></div>
   </form>

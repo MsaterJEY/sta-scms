@@ -18,6 +18,8 @@ from ..services import audit
 from ..utils import now_iso, sort_thai
 
 bp = Blueprint("roster", __name__, url_prefix="/admin/roster")
+members_bp = Blueprint("members", __name__, url_prefix="/members")
+DIVISION_ORDER = ["ADMIN", "SECRETARY", "ACTIVITY", "PR", "POLICY"]
 TYPES = {"COMM": ("กรรมการ", "COMMITTEE", "COMM_"), "SUBCOMM": ("อนุกรรมการ", "SUBCOMMITTEE", "SUB_")}
 MAX_ROWS = 1500
 # หัวคอลัมน์ที่ระบบใช้ (จับคู่จากคำที่อยู่ในหัวคอลัมน์ของไฟล์)
@@ -313,3 +315,75 @@ def ds_roster(args):
             r.get("status_text"), "มีบัญชีแล้ว" if r.get("user_id") else "รอสมัครสมาชิก"] for r in rows]
     return f"member-roster-{year}", ["ประเภท", "รหัสนักศึกษา", "ชื่อ", "นามสกุล", "สาขาวิชา", "กอง", "ฝ่าย", "ชั้นปี",
                                       "สถานะในสโม", "บัญชี"], out
+
+
+# ---------- สรุปรายชื่อกรรมการ/อนุกรรมการ (อ่านอย่างเดียว สำหรับบอร์ดบริหาร) ----------
+def all_members(year):
+    """รายชื่อจากทะเบียนที่นำเข้า + ผู้ถือตำแหน่งกรรมการ/อนุกรรมการที่เพิ่มเองในหน้าผู้ถือตำแหน่ง"""
+    rows = repo().where("member_roster", academic_year=year)
+    linked = {r.get("holder_id") for r in rows if r.get("holder_id")}
+    positions = _positions(year)
+    level_type = {v[1]: k for k, v in TYPES.items()}
+    programs = {p["id"]: p for p in repo().all("programs")}
+    for h in repo().where("position_holders", academic_year=year, status="ACTIVE"):
+        pos = positions.get(h["position_id"])
+        if not pos or pos.get("level") not in level_type or h["id"] in linked:
+            continue
+        u = repo().get("users", h["user_id"]) or {}
+        rows.append({"id": "h_" + h["id"], "academic_year": year, "member_type": level_type[pos["level"]],
+                     "student_code": u.get("student_code") or "", "first_name": u.get("first_name") or "",
+                     "last_name": u.get("last_name") or "", "unit": "", "year_level": u.get("year_level"),
+                     "program": (programs.get(u.get("program_code")) or {}).get("name_th") or "",
+                     "status_text": "", "division_id": pos.get("division_id"), "user_id": h["user_id"]})
+    return rows
+
+
+def _members_view(args):
+    year = int(args.get("year") or current_year())
+    everyone = all_members(year)
+    divisions = {d["id"]: d for d in repo().all("divisions")}
+    order = DIVISION_ORDER + sorted(d for d in divisions if d not in DIVISION_ORDER)
+    rank = {d: i for i, d in enumerate(order)}
+    summary = [{"id": d, "name": divisions[d].get("name", d),
+                **{k: sum(1 for r in everyone if r.get("division_id") == d and r.get("member_type") == k) for k in TYPES}}
+               for d in order if d in divisions]
+    none = [r for r in everyone if r.get("division_id") not in divisions]
+    if none:
+        summary.append({"id": "", "name": "ไม่ระบุกอง", **{k: sum(1 for r in none if r.get("member_type") == k) for k in TYPES}})
+    total = {k: sum(1 for r in everyone if r.get("member_type") == k) for k in TYPES}
+    rows = everyone
+    if args.get("type") in TYPES:
+        rows = [r for r in rows if r.get("member_type") == args["type"]]
+    if args.get("division"):
+        rows = [r for r in rows if r.get("division_id") == args["division"]]
+    q = (args.get("q") or "").strip()
+    if q:
+        rows = [r for r in rows if q in (r.get("student_code") or "") or q in f"{r.get('first_name', '')} {r.get('last_name', '')}"]
+    rows = sort_thai(rows, lambda r: r.get("first_name"))
+    rows.sort(key=lambda r: (rank.get(r.get("division_id"), 99), r.get("member_type") != "COMM"))
+    groups = []
+    for r in rows:
+        name = divisions.get(r.get("division_id"), {}).get("name", "ไม่ระบุกอง")
+        if not groups or groups[-1]["name"] != name:
+            groups.append({"name": name, "rows": []})
+        groups[-1]["rows"].append(r)
+    return year, summary, total, groups, [divisions[d] for d in order if d in divisions]
+
+
+@members_bp.route("/", endpoint="index")
+@permission_required("member.view", "admin.holders")
+def members_index():
+    year, summary, total, groups, division_list = _members_view(request.args)
+    return render_template("admin/members.html", year=year, summary=summary, total=total, groups=groups, types=TYPES,
+                           division_list=division_list, args=request.args,
+                           years=sorted(repo().all("academic_years"), key=lambda y: y["id"]))
+
+
+@dataset("members_summary")
+def ds_members(args):
+    if not (can("member.view") or can("admin.holders")):
+        abort(403)
+    year, _, _, groups, _ = _members_view(args)
+    out = [[g["name"], TYPES[r["member_type"]][0], r.get("student_code"), r.get("first_name"), r.get("last_name"),
+            r.get("unit"), r.get("program"), r.get("year_level")] for g in groups for r in g["rows"]]
+    return f"members-{year}", ["กอง", "ประเภท", "รหัสนักศึกษา", "ชื่อ", "นามสกุล", "ฝ่าย", "สาขาวิชา", "ชั้นปี"], out

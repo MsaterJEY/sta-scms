@@ -47,6 +47,7 @@
     {% if can('rec.approve') or can('eqp.self_approve') %}{{ item('dashboard.approvals', 'check2-square', 'รายการรออนุมัติ') }}{% endif %}
     {% if can('team.manage') or can('team.delete') %}{{ item('team.manage', 'people-fill', 'จัดการรับสมัครทีมงาน', also=('team.form', 'team.applicants')) }}{% endif %}
     {% if can('ann.manage') or can('ann.draft') %}{{ item('announcements.manage', 'megaphone', 'จัดการประกาศ' if can('ann.manage') else 'ร่างประกาศ', also=('announcements.form',)) }}{% endif %}
+    {% if can('member.view') or can('admin.holders') %}{{ item('members.index', 'people', 'สรุปรายชื่อกรรมการ/อนุฯ') }}{% endif %}
     {% if can('org.manage') %}{{ item('org.manage', 'diagram-3', 'โครงสร้างองค์กร') }}{% endif %}
     {% if can('admin.manage') or can('ann.manage') %}{{ item('announcements.banners', 'images', 'Banner หน้าแรก') }}{% endif %}
     {% if can('faq.manage') %}{{ item('announcements.faq_manage', 'question-circle', 'จัดการ FAQ') }}{% endif %}

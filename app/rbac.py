@@ -44,6 +44,7 @@ PERMISSIONS = {
     "tkt.sla_view": ("ดูแจ้งเตือนเรื่องค้างเกิน SLA", ["PRES"], False),
     "ann.manage": ("สร้าง/แก้ไข/เผยแพร่/ตั้งเวลาประกาศ", ["PR"], False),
     "ann.draft": ("ร่างประกาศ (เผยแพร่ไม่ได้)", ["PR_DRAFT"], False),
+    "member.view": ("ดูสรุปรายชื่อกรรมการ/อนุกรรมการ (อ่านอย่างเดียว)", ["BOARD", "SYS_ADMIN"], False),
     "org.manage": ("ใส่ข้อมูลโครงสร้างองค์กร (เผยแพร่ต่อสาธารณะ)", ["PRES_SEC", "ADMIN_SEC"], False),
     "faq.manage": ("จัดการ FAQ", ["DIV_SEC", "PRES_SEC"], False),
     "doc.upload": ("บันทึก/ดูเอกสารของกองตน", ["BOARD"], False),
