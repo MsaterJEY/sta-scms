@@ -86,7 +86,9 @@ def home():
     cats = {c["id"]: c for c in repo().all("announcement_categories")}
     rounds = [r for r in repo().where("recruitment_rounds", status="OPEN")]
     open_positions = repo().where("activity_positions", status="OPEN") if current_app.config.get("ACTIVITIES_ENABLED") else []
-    return render_template("public/home.html", anns=anns, notices=notices, cats=cats, rounds=rounds,
+    from .join import is_open as join_is_open
+    join_rounds = [r for r in repo().where("join_rounds", status="OPEN") if join_is_open(r)]
+    return render_template("public/home.html", anns=anns, notices=notices, cats=cats, rounds=rounds, join_rounds=join_rounds,
                            open_positions=open_positions, banners=home_banners(),
                            gallery=[a for a in all_anns if a.get("cover_path")][:4],
                            team_events=open_events())

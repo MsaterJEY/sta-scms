@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}จัดการรับสมัครกรรมการ/อนุกรรมการ{% endblock %}
+{% block content %}
+{% call m.page_header('จัดการรับสมัครกรรมการ/อนุกรรมการ', 'เปิดรอบ ดูผู้สมัคร กรอกคะแนนสัมภาษณ์ และสรุปผล') %}
+<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('join.index') }}" target="_blank">ดูหน้าสมัคร</a>
+{% if can('rec.manage') %}<a class="btn btn-sm btn-sta" href="{{ url_for('join.round_form') }}"><i class="bi bi-plus"></i> เปิดรอบรับสมัคร</a>{% endif %}
+{% endcall %}
+<div class="card"><div class="table-responsive"><table class="table mb-0 align-middle">
+  <thead><tr><th>รอบรับสมัคร</th><th>ประเภท</th><th>ชั้นปีที่รับ</th><th class="text-end">ผู้สมัคร</th><th class="text-end">มีคะแนนแล้ว</th><th class="text-end">ผ่าน</th><th>สถานะ</th><th></th></tr></thead><tbody>
+  {% for r in rounds %}{% set st = JOIN_ROUND_STATUS.get(r.status, (r.status, 'secondary')) %}
+  <tr><td><a class="fw-semibold" href="{{ url_for('join.applicants', rid=r.id) }}">{{ r.title }}</a><div class="small text-secondary">ปีการศึกษา {{ r.academic_year }}{% if r.close_at %} · ปิดรับ {{ r.close_at|thaidate }}{% endif %}</div></td>
+    <td><span class="badge text-bg-{{ 'success' if r.kind == 'COMM' else 'info' }}">{{ JOIN_KINDS[r.kind].label }}</span></td>
+    <td class="small">{{ r.year_text }}</td><td class="text-end">{{ r.count }}</td><td class="text-end">{{ r.scored }}</td><td class="text-end">{{ r.passed }}</td>
+    <td><span class="badge text-bg-{{ st[1] }}">{{ st[0] }}</span>{% if r.results_published %} <span class="badge text-bg-primary">ประกาศผลแล้ว</span>{% endif %}</td>
+    <td class="text-nowrap"><a class="btn btn-sm btn-outline-secondary" href="{{ url_for('join.applicants', rid=r.id) }}">ผู้สมัคร</a>
+      {% if can('rec.manage') %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('join.round_form', rid=r.id) }}" aria-label="แก้ไขรอบ"><i class="bi bi-pencil"></i></a>{% endif %}</td></tr>
+  {% else %}<tr><td colspan="8">{{ m.empty('ยังไม่มีรอบรับสมัคร') }}</td></tr>{% endfor %}
+  </tbody></table></div></div>
+{% endblock %}

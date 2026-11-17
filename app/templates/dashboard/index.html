@@ -40,9 +40,9 @@
   </div>
   {% if me.account_type == 'SCI' %}
   <div class="col-lg-4">
-    <div class="card h-100"><div class="card-header d-flex justify-content-between">การสมัคร <a class="small" href="{{ url_for('recruit.my') }}">ทั้งหมด</a></div>
+    <div class="card h-100"><div class="card-header d-flex justify-content-between">การสมัคร <a class="small" href="{{ url_for('join.status') }}">ดูสถานะ</a></div>
       <div class="card-body small">
-        <div>ใบสมัครกรรมการ: <strong>{{ my_apps|length }}</strong></div>
+        <div>ใบสมัครกรรมการ/อนุกรรมการ: <strong>{{ my_join|length + my_apps|length }}</strong> · <a href="{{ url_for('join.status') }}">ดูสถานะ</a></div>
         <div>ใบสมัครทีมงานกิจกรรม: <strong>{{ my_team_apps|length }}</strong> · <a href="{{ url_for('team.my') }}">ดูสถานะ</a></div>
         {% if activities_on %}
         <div>ใบสมัครทีมงาน (โมดูลกิจกรรม): <strong>{{ my_staff_apps|length }}</strong> · <a href="{{ url_for('activities.my') }}">ดูสถานะ</a></div>

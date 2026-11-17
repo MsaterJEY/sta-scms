@@ -7,7 +7,7 @@
 </a>
 {% endmacro %}
 
-{% set staff_menu = staff_menu or can('admin.manage') %}
+{% set staff_menu = staff_menu or can('admin.manage') or can('rec.edit') %}
 {% set is_member = 'BOARD' in my_roles or 'COMM' in my_roles or 'SUBCOMM' in my_roles %}
 {% set line_on = config.LINE_CHANNEL_ACCESS_TOKEN and config.LINE_CHANNEL_SECRET %}
 <div class="offcanvas-lg offcanvas-start side" tabindex="-1" id="sideMenu" aria-label="เมนู">
@@ -29,9 +29,8 @@
     {{ item('tickets.index', 'chat-left-text', 'คำร้อง/ร้องเรียน', also=('tickets.detail', 'tickets.new', 'tickets.stats')) }}{% endif %}
     {{ item('team.index', 'people', 'สมัครทีมงานกิจกรรม', also=('team.detail',)) }}
     {{ item('team.my', 'card-checklist', 'สถานะการสมัครทีมงาน') }}
-    {% if me.account_type == 'SCI' or can('rec.manage') or can('rec.score') or can('rec.approve') %}
-    {{ item('recruit.index', 'person-badge', 'รับสมัครกรรมการ', also=('recruit.detail', 'recruit.form', 'recruit.batch_view', 'recruit.batch_form', 'recruit.score')) }}{% endif %}
-    {% if me.account_type == 'SCI' %}{{ item('recruit.my', 'clipboard-check', 'ใบสมัครกรรมการของฉัน') }}{% endif %}
+    {{ item('join.index', 'person-badge', 'สมัครกรรมการ/อนุกรรมการ', also=('join.apply', 'join.done')) }}
+    {{ item('join.status', 'clipboard-check', 'สถานะการสมัครกรรมการ') }}
     {% if activities_on %}{{ item('activities.index', 'calendar-event', 'กิจกรรมและทีมงาน') }}{% endif %}
 
     {% if can('eqp.manage') %}
@@ -46,6 +45,7 @@
     {% if staff_menu %}
     <div class="side-group">งานสโมสร</div>
     {% if can('rec.approve') or can('eqp.self_approve') %}{{ item('dashboard.approvals', 'check2-square', 'รายการรออนุมัติ') }}{% endif %}
+    {% if can('rec.manage') or can('rec.score') or can('rec.approve') or can('rec.edit') %}{{ item('join.manage', 'person-lines-fill', 'จัดการรับสมัครกรรมการ/อนุฯ', also=('join.applicants', 'join.round_form')) }}{% endif %}
     {% if can('team.manage') or can('team.delete') %}{{ item('team.manage', 'people-fill', 'จัดการรับสมัครทีมงาน', also=('team.form', 'team.applicants')) }}{% endif %}
     {% if can('ann.manage') or can('ann.draft') %}{{ item('announcements.manage', 'megaphone', 'จัดการประกาศ' if can('ann.manage') else 'ร่างประกาศ', also=('announcements.form',)) }}{% endif %}
     {% if can('member.view') or can('admin.holders') %}{{ item('members.index', 'people', 'สรุปรายชื่อกรรมการ/อนุฯ') }}{% endif %}

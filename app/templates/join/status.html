@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}ตรวจสอบสถานะการสมัคร{% endblock %}
+{% block content %}
+{% call m.page_header('ตรวจสอบสถานะ/ผลการสมัคร', 'คณะกรรมการและอนุกรรมการสโมสรนักศึกษา') %}
+<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('join.index') }}">รอบรับสมัคร</a>
+{% endcall %}
+<div class="row g-3">
+<div class="col-lg-5"><div class="card"><div class="card-body">
+  <form method="post">{{ m.csrf() }}
+    <label class="form-label" for="ss">รหัสนักศึกษา</label><input class="form-control mb-2" id="ss" name="student_code" inputmode="numeric" maxlength="9" required>
+    <label class="form-label" for="sc">รหัสการสมัคร</label><input class="form-control mb-3" id="sc" name="app_code" placeholder="เช่น APP-2569-K0001" required>
+    <button class="btn btn-sta"><i class="bi bi-search"></i> ตรวจสอบ</button>
+  </form>
+  <div class="form-text mt-3">รหัสการสมัครแสดงในหน้ายืนยันหลังส่งใบสมัคร ถ้าทำหาย ติดต่อเลขาฝ่ายบริหารและสัมพันธ์</div>
+</div></div></div>
+<div class="col-lg-7">
+  {% for a in found %}{% set r = rounds.get(a.round_id, {}) %}
+  <div class="card mb-3"><div class="card-body">
+    <div class="d-flex flex-wrap justify-content-between gap-2 mb-2">
+      <div><span class="badge text-bg-{{ 'success' if a.kind == 'COMM' else 'info' }}">{{ JOIN_KINDS[a.kind].label }}</span> <span class="fw-semibold">{{ r.get('title', '-') }}</span></div>
+      <span class="font-monospace small">{{ a.app_code }}</span>
+    </div>
+    <div>{{ name(a) }} · {{ a.student_code }}</div>
+    <div class="small text-secondary mb-3">{{ a.unit }} · สมัครเมื่อ {{ a.submitted_at|thaidate }}</div>
+    {% if r.get('results_published') %}
+    {% set res = JOIN_RESULTS.get(a.result, JOIN_RESULTS.PENDING) %}
+    <div class="alert alert-{{ res[1] }} mb-0"><div class="small">ผลการคัดเลือก</div><div class="fs-5 fw-bold">{{ res[0] }}</div></div>
+    {% else %}
+    <div class="alert alert-secondary small mb-0"><i class="bi bi-hourglass-split me-1"></i>ได้รับใบสมัครแล้ว อยู่ระหว่างการพิจารณา ยังไม่ประกาศผล{% if r.get('interview_info') %}<div class="mt-1">{{ r.interview_info }}</div>{% endif %}</div>
+    {% endif %}
+  </div></div>
+  {% else %}
+  <div class="panel text-center">{{ m.empty('ไม่พบใบสมัคร ตรวจสอบรหัสนักศึกษาและรหัสการสมัครอีกครั้ง' if searched else 'กรอกรหัสนักศึกษาและรหัสการสมัครเพื่อดูสถานะ') }}</div>
+  {% endfor %}
+</div>
+</div>
+{% endblock %}

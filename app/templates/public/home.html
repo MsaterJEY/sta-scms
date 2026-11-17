@@ -67,7 +67,7 @@
       ('box-seam', 'svc.borrow', 'ยืม-คืนอุปกรณ์', url_for('equipment.catalog')),
       ('people', 'svc.team', 'สมัครทีมงาน', url_for('team.index')),
       ('chat-left-text', 'svc.ticket', 'ส่งคำร้องออนไลน์', url_for('tickets.index')),
-      ('person-badge', 'svc.recruit', 'รับสมัครกรรมการ', url_for('recruit.index')),
+      ('person-badge', 'svc.recruit', 'รับสมัครกรรมการ', url_for('join.index')),
       ('door-open', 'svc.rooms', 'จองใช้ห้อง', url_for('public.coming_soon', key='rooms')),
       ('question-circle', 'svc.faq', 'ช่วยเหลือ', url_for('public.faq'))] %}
     <a class="service-tile" href="{{ link }}">
@@ -126,13 +126,16 @@
           {% for e in team_events[:4] %}
           <a class="open-row" href="{{ url_for('team.detail', eid=e.id) }}"><span>{{ e.start_date|thaiday }} — {{ e.title }}</span><span class="badge text-bg-success">ทีมงานกิจกรรม</span></a>
           {% endfor %}
+          {% for r in join_rounds[:3] %}
+          <a class="open-row" href="{{ url_for('join.apply', rid=r.id) }}"><span>{% if r.close_at %}ปิดรับ {{ r.close_at|thaiday }} — {% endif %}{{ r.title }}</span><span class="badge text-bg-{{ 'success' if r.kind == 'COMM' else 'info' }}">{{ JOIN_KINDS[r.kind].label }}</span></a>
+          {% endfor %}
           {% for r in rounds[:3] %}
           <a class="open-row" href="{{ url_for('recruit.detail', rid=r.id) }}"><span>ปิดรับ {{ r.close_at|thaiday }} — {{ r.title }}</span><span class="badge text-bg-warning">กรรมการ</span></a>
           {% endfor %}
           {% for p in open_positions[:3] %}
           <a class="open-row" href="{{ url_for('activities.detail', aid=p.activity_id) }}"><span>ปิดรับ {{ p.close_at|thaiday }} — {{ p.name }}</span><span class="badge text-bg-success">ทีมงาน</span></a>
           {% endfor %}
-          {% if not (team_events or rounds or open_positions) %}<div class="text-secondary small py-2">ไม่มีรายการในขณะนี้</div>{% endif %}
+          {% if not (team_events or rounds or open_positions or join_rounds) %}<div class="text-secondary small py-2">ไม่มีรายการในขณะนี้</div>{% endif %}
         </div>
         {% if notices %}
         <h3 class="home-h3 mt-4 mb-2" data-i18n="home.notice">ประกาศ</h3>

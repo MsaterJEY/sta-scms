@@ -1150,6 +1150,126 @@ with app.app_context():
     for x in repo().where("org_members", first_name="อัง"):
         repo().delete("org_members", x["id"])
 
+    print("== committee/subcommittee application module (ported from Apps Script)")
+    guest3 = app.test_client()
+    check("ยังไม่มีรอบรับสมัคร" in get_ok(guest3, "/join/").get_data(as_text=True), "public join page, empty")
+    check(stu.get("/join/manage").status_code == 403 and guest3.get("/join/manage").status_code == 302, "join management is staff only")
+    check(eqh.get("/join/manage/new").status_code == 403, "only rec.manage creates rounds")
+    ph.post("/join/manage/new", data={"title": "รับสมัครคณะกรรมการ 2569", "kind": "COMM", "academic_year": 2569, "min_year": 2, "max_year": 4,
+                                      "interview_info": "สัมภาษณ์ 20 มิ.ย.", "units": "ฝ่ายสื่อ" + chr(10) + "ฝ่ายเอกสาร" + chr(10) + "ฝ่ายลึกลับ"})
+    ph.post("/join/manage/new", data={"title": "รับสมัครอนุกรรมการ 2569", "kind": "SUBCOMM", "academic_year": 2569})
+    jc = repo().where("join_rounds", kind="COMM")[0]
+    js_ = repo().where("join_rounds", kind="SUBCOMM")[0]
+    check(jc["status"] == "WAITING" and (js_["min_year"], js_["max_year"]) == (1, 1) and len(js_["units"]) == 12,
+          "rounds created; subcommittee defaults to year 1 and the original 12 units")
+    check(guest3.get(f"/join/{jc['id']}").status_code == 404, "waiting round hidden from public")
+    for rr in (jc, js_):
+        ph.post(f"/join/manage/{rr['id']}/status", data={"action": "OPEN"})
+    pg = get_ok(guest3, "/join/").get_data(as_text=True)
+    check("รับสมัครคณะกรรมการ 2569" in pg and "ชั้นปีที่ 2-4" in pg and "ชั้นปีที่ 1" in pg, "public page lists open rounds with year rules")
+    check("รับสมัครคณะกรรมการ 2569" in guest3.get("/").get_data(as_text=True), "home shows open join rounds")
+    get_ok(guest3, f"/join/{jc['id']}", "public application form (no login)")
+    base_app = {"prefix": "นาย", "first_name": "สมชาย", "last_name": "ใจดี", "student_code": "406765101", "program_code": "65",
+                "line_id": "somchai", "unit": "ฝ่ายสื่อ", "experience": "เคยเป็นประธานรุ่น", "consent": "1"}
+
+    def japply(rid, **over):
+        return guest3.post(f"/join/{rid}", data=dict(base_app, **over))
+
+    def jcount(rid):
+        return len(repo().where("join_applications", round_id=rid))
+    japply(jc["id"], first_name="สมชาย123")
+    japply(jc["id"], student_code="12345")
+    japply(jc["id"], student_code="406111011")           # ต่างคณะ
+    japply(jc["id"], student_code="406965103")           # ปี 1 สมัครกรรมการไม่ได้
+    japply(jc["id"], unit="ฝ่ายที่ไม่มี")
+    japply(jc["id"], consent="")
+    japply(jc["id"], website="http://spam")
+    check(jcount(jc["id"]) == 0, "invalid name, code, faculty, year, unit, consent and bot submissions are refused")
+    japply(js_["id"], student_code="406765101", unit="ฝ่ายบุคลากร")   # ปี 3 สมัครอนุกรรมการไม่ได้
+    check(jcount(js_["id"]) == 0, "subcommittee round accepts year 1 only")
+    r = japply(jc["id"])
+    ja = repo().get("join_applications", f"{jc['id']}_406765101")
+    check(r.status_code == 302 and ja and ja["app_code"] == "APP-2569-K0001" and ja["year_level"] == 3 and ja["program"] == "เทคโนโลยีสารสนเทศ"
+          and ja["result"] == "PENDING", "year 3 student applies for committee; app code issued; stored in the database")
+    dn = guest3.get(f"/join/{jc['id']}/done").get_data(as_text=True)
+    check("APP-2569-K0001" in dn and "นายสมชาย ใจดี" in dn and "สัมภาษณ์ 20 มิ.ย." in dn, "success page shows the application summary")
+    check(app.test_client().get(f"/join/{jc['id']}/done").status_code == 302, "success page is only for the submitting browser")
+    japply(jc["id"], first_name="คนอื่น")
+    check(jcount(jc["id"]) == 1, "same student code cannot apply twice")
+    japply(jc["id"], student_code="406865102", first_name="สมหญิง", last_name="รักเรียน", prefix="นางสาว", unit="ฝ่ายเอกสาร")
+    japply(jc["id"], student_code="406665104", first_name="สมศักดิ์", last_name="ขยัน", unit="ฝ่ายลึกลับ")
+    japply(js_["id"], student_code="406965103", first_name="น้องใหม่", last_name="ปีหนึ่ง", unit="ฝ่ายจิตอาสา")
+    check(jcount(jc["id"]) == 3 and jcount(js_["id"]) == 1 and repo().get("join_applications", f"{js_['id']}_406965103")["app_code"] == "APP-2569-S0001",
+          "year 1 student applies for subcommittee")
+    stu.post(f"/join/{jc['id']}", data=dict(base_app, student_code="406865010", first_name="นักศึกษา", last_name="ทดสอบ"))
+    mine = repo().get("join_applications", f"{jc['id']}_406865010")
+    check(mine and mine["user_id"] == stu_id and any("สมัครคณะกรรมการสำเร็จ" in n["title"] for n in repo().where("notifications", user_id=stu_id)),
+          "logged-in applicant is linked and gets a confirmation")
+    # ตรวจสถานะ
+    st = guest3.post("/join/status", data={"student_code": "406765101", "app_code": "app-2569-k0001"}).get_data(as_text=True)
+    check("นายสมชาย ใจดี" in st and "อยู่ระหว่างการพิจารณา" in st and "ผ่านการคัดเลือก" not in st, "status check by student code + app code; no result before publishing")
+    check("นายสมชาย" not in guest3.post("/join/status", data={"student_code": "406765101", "app_code": "APP-2569-K0009"}).get_data(as_text=True),
+          "wrong app code reveals nothing")
+    # ทีมงานกรอกคะแนนและสรุปผล
+    pg = get_ok(pres, f"/join/manage/{jc['id']}", "applicants as board (scorer)").get_data(as_text=True)
+    check("เคยเป็นประธานรุ่น" in pg and 'name="score_' in pg and 'name="result_' not in pg, "board can enter scores but not decide results")
+    pres.post(f"/join/manage/{jc['id']}/scores", data={f"score_{jc['id']}_406765101": "82.5", f"note_{jc['id']}_406765101": "ตอบดี",
+                                                       f"score_{jc['id']}_406865102": "55", f"result_{jc['id']}_406765101": "PASS"})
+    ja = repo().get("join_applications", f"{jc['id']}_406765101")
+    check(ja["score"] == 82.5 and ja["score_note"] == "ตอบดี" and ja["result"] == "PENDING", "scores saved; scorer cannot set results")
+    check(stu.post(f"/join/manage/{jc['id']}/scores", data={f"score_{jc['id']}_406765101": "1"}).status_code == 403, "students cannot score")
+    pres.post(f"/join/manage/{jc['id']}/scores", data={f"score_{jc['id']}_406765101": "85"})
+    check(repo().get("join_applications", f"{jc['id']}_406765101")["score"] == 85, "score can be edited")
+    ph.post(f"/join/manage/{jc['id']}/status", data={"action": "publish"})
+    check(not repo().get("join_rounds", jc["id"]).get("results_published"), "cannot publish while results are pending")
+    ph.post(f"/join/manage/{jc['id']}/scores", data={"cutoff": "60"})
+    res = {a["student_code"]: a["result"] for a in repo().where("join_applications", round_id=jc["id"])}
+    check(res["406765101"] == "PASS" and res["406865102"] == "FAIL" and res["406665104"] == "PENDING", "cutoff decides scored applicants only")
+    ph.post(f"/join/manage/{jc['id']}/scores", data={f"result_{jc['id']}_406665104": "PASS", f"result_{jc['id']}_406865010": "RESERVE"})
+    pg = ph.get(f"/join/manage/{jc['id']}").get_data(as_text=True)
+    check("สรุปผู้ผ่านการสัมภาษณ์แยกตามฝ่าย" in pg and "ส่งผู้ผ่านเข้าทะเบียน" in pg, "summary of passers by unit")
+    r = ph.get(f"/export/join_applicants?fmt=tsv&round_id={jc['id']}")
+    check(r.status_code == 200 and "APP-2569-K0001" in r.get_data(as_text=True) and stu.get(f"/export/join_applicants?fmt=tsv&round_id={jc['id']}").status_code == 403,
+          "applicant export for staff only")
+    ph.post(f"/join/manage/{jc['id']}/status", data={"action": "publish"})
+    check(repo().get("join_rounds", jc["id"])["results_published"], "results published")
+    st = guest3.post("/join/status", data={"student_code": "406765101", "app_code": "APP-2569-K0001"}).get_data(as_text=True)
+    check("ผ่านการคัดเลือก" in st, "applicant sees the result after publishing")
+    check(any("ประกาศผลคณะกรรมการ" in n["title"] for n in repo().where("notifications", user_id=stu_id)), "linked applicant notified of the result")
+    # เลขาฝ่ายบริหารฯ แก้ไขข้อมูลผู้สมัคร
+    aid0 = f"{jc['id']}_406765101"
+    check(ph.post(f"/join/application/{aid0}/edit", data={"action": "save"}).status_code == 403
+          and "bi-pencil" not in pres.get(f"/join/manage/{jc['id']}?sort=name").get_data(as_text=True).split("ผู้สมัครและคะแนนสัมภาษณ์")[1],
+          "only ADMIN_SEC (rec.edit) edits applicant data")
+    check("แก้ไขข้อมูลผู้สมัคร: APP-2569-K0001" in get_ok(asec, f"/join/manage/{jc['id']}?edit={aid0}").get_data(as_text=True), "applicant edit form")
+    fix = {"action": "save", "prefix": "นาย", "first_name": "สมชัย", "last_name": "ใจดีมาก", "student_code": "406765105", "program_code": "59",
+           "unit": "ฝ่ายสื่อ", "line_id": "x", "experience": "", "reason": "เจ้าตัวแจ้งว่ากรอกผิด"}
+    asec.post(f"/join/application/{aid0}/edit", data=dict(fix, student_code="406865102"))
+    check(repo().get("join_applications", aid0)["first_name"] == "สมชาย", "cannot change to a student code already used in the round")
+    asec.post(f"/join/application/{aid0}/edit", data=dict(fix, student_code="406965103"))
+    check(repo().get("join_applications", aid0), "edited student code must still satisfy the year rule")
+    asec.post(f"/join/application/{aid0}/edit", data=fix)
+    moved = repo().get("join_applications", f"{jc['id']}_406765105")
+    check(not repo().get("join_applications", aid0) and moved and moved["first_name"] == "สมชัย" and moved["app_code"] == "APP-2569-K0001"
+          and moved["score"] == 85 and moved["result"] == "PASS" and moved["program"].startswith("วิทยาการคอมพิวเตอร์"),
+          "ADMIN_SEC fixes name and student code; app code, score and result are kept")
+    lg = [x for x in repo().where("audit_logs", action="join.application_edit")][-1]
+    check(lg["old"]["student_code"] == "406765101" and "กรอกผิด" in (lg.get("note") or ""), "edit is audited with the reason")
+    sub_id = f"{js_['id']}_406965103"
+    asec.post(f"/join/application/{sub_id}/edit", data=dict(fix, student_code="406965103", first_name="น้องใหม่", last_name="แก้แล้ว", unit="ฝ่ายจิตอาสา"))
+    check(repo().get("join_applications", sub_id)["last_name"] == "แก้แล้ว", "ADMIN_SEC also edits subcommittee applicants")
+    # ส่งผู้ผ่านเข้าทะเบียน
+    ph.post(f"/join/manage/{jc['id']}/to-roster")
+    ro = {x["student_code"]: x for x in repo().where("member_roster", academic_year=2569) if x.get("source") == "JOIN"}
+    check(set(ro) == {"406765105"} and ro["406765105"]["position_id"] == "COMM_PR" and ro["406765105"]["member_type"] == "COMM",
+          "passers go to the roster with the division of their unit; unknown units are reported")
+    for x in ro.values():
+        repo().delete("member_roster", x["id"])
+    ph.post(f"/join/manage/{jc['id']}/status", data={"action": "delete"})
+    check(repo().get("join_rounds", jc["id"]), "round with applicants cannot be deleted")
+    side = asec.get("/app/").get_data(as_text=True)
+    check("/join/manage" in side and "/join/status" in side and 'href="/recruit/"' not in side, "menus point to the new module")
+
     print("== admin menu access")
     asec_c = client_for("406765004")
     check("ผู้ถือตำแหน่งตามวาระ" in get_ok(asec_c, "/admin/holders", "holders as ADMIN_SEC").get_data(as_text=True), "ADMIN_SEC uses holders page")

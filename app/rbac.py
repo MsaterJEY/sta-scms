@@ -25,6 +25,7 @@ PERMISSIONS = {
     "delegation.manage": ("มอบ/ถอนสิทธิ์คัดกรอง", ["ADMIN_VP", "ADMIN_SEC"], True),
     "rec.manage": ("เปิด/ปิดรอบรับสมัครกรรมการ ตรวจคุณสมบัติ จัดชุดผล", ["PERSONNEL_HEAD"], False),
     "rec.view_grade": ("เห็นเกรดผู้สมัคร", ["PERSONNEL_HEAD"], False),
+    "rec.edit": ("แก้ไขข้อมูลผู้สมัครกรรมการ/อนุกรรมการเมื่อกรอกผิด", ["ADMIN_SEC", "SYS_ADMIN"], False),
     "rec.score": ("ให้คะแนนสัมภาษณ์", ["BOARD"], False),
     "rec.approve": ("อนุมัติผลคัดเลือกกรรมการ (ALL)", ["ADMIN_VP", "ADMIN_SEC"], True),
     "rec.view_scores": ("ดูคะแนนรายคน", ["ADMIN_VP", "ADMIN_SEC"], True),

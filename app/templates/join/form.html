@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}สมัคร{{ JOIN_KINDS[r.kind].label }}{% endblock %}
+{% block content %}
+{% call m.page_header('ใบสมัคร' ~ JOIN_KINDS[r.kind].label, r.title ~ ' · ปีการศึกษา ' ~ r.academic_year) %}
+<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('join.index') }}">กลับ</a>
+{% endcall %}
+<div class="row g-3 justify-content-center">
+<div class="col-lg-8">
+  <div class="alert alert-{{ 'success' if open else 'secondary' }} small">
+    <i class="bi bi-info-circle me-1"></i>รอบนี้รับเฉพาะนักศึกษาคณะวิทยาศาสตร์เทคโนโลยีและการเกษตร <strong>{{ year_text }}</strong>{% if r.close_at %} · ปิดรับ {{ r.close_at|thaidate }}{% endif %}
+    {% if not open %}<div class="mt-1 fw-semibold">ขณะนี้ไม่ได้เปิดรับสมัคร</div>{% endif %}
+  </div>
+  {% if r.description %}<div class="card mb-3"><div class="card-body small pre-wrap">{{ r.description }}</div></div>{% endif %}
+  <div class="card"><div class="card-body">
+    <form method="post" id="joinForm" novalidate>{{ m.csrf() }}
+      <input type="text" name="website" class="d-none" tabindex="-1" autocomplete="off" aria-hidden="true">
+      <h2 class="h6 text-sta mb-3"><i class="bi bi-person me-1"></i>ข้อมูลผู้สมัคร</h2>
+      <div class="row g-3 mb-3">
+        <div class="col-sm-3"><label class="form-label" for="jp">คำนำหน้าชื่อ <span class="text-danger">*</span></label>
+          <select class="form-select" id="jp" name="prefix" required><option value="">-- เลือก --</option>{% for p in prefixes %}<option {% if form.prefix == p %}selected{% endif %}>{{ p }}</option>{% endfor %}</select></div>
+        <div class="col-sm-4"><label class="form-label" for="jf">ชื่อ <span class="text-danger">*</span></label><input class="form-control" id="jf" name="first_name" maxlength="80" required value="{{ form.first_name or '' }}"></div>
+        <div class="col-sm-5"><label class="form-label" for="jl">นามสกุล <span class="text-danger">*</span></label><input class="form-control" id="jl" name="last_name" maxlength="80" required value="{{ form.last_name or '' }}"></div>
+      </div>
+      <div class="row g-3 mb-3">
+        <div class="col-sm-5"><label class="form-label" for="js">รหัสนักศึกษา <span class="text-danger">*</span></label>
+          <input class="form-control" id="js" name="student_code" inputmode="numeric" maxlength="9" pattern="[0-9]{9}" placeholder="เช่น 406XXXXXX" required value="{{ form.student_code or '' }}">
+          <div class="form-text" id="jsHint">ระบบตรวจชั้นปีจากรหัสนักศึกษา</div></div>
+        <div class="col-sm-7"><label class="form-label" for="jm">สาขาวิชา <span class="text-danger">*</span></label>
+          <select class="form-select" id="jm" name="program_code" required><option value="">-- เลือกสาขาวิชา --</option>{% for p in programs %}<option value="{{ p.id }}" {% if form.program_code == p.id %}selected{% endif %}>{{ p.name_th }}</option>{% endfor %}</select></div>
+      </div>
+      <h2 class="h6 text-sta mb-3 mt-4"><i class="bi bi-diagram-3 me-1"></i>การสมัคร</h2>
+      <div class="row g-3 mb-3">
+        <div class="col-sm-7"><label class="form-label" for="ju">ฝ่ายที่ต้องการสมัคร <span class="text-danger">*</span></label>
+          <select class="form-select" id="ju" name="unit" required><option value="">-- เลือกฝ่าย --</option>{% for un in units %}<option {% if form.unit == un %}selected{% endif %}>{{ un }}</option>{% endfor %}</select></div>
+        <div class="col-sm-5"><label class="form-label" for="jn">Line ID</label><input class="form-control" id="jn" name="line_id" maxlength="60" placeholder="@lineid หรือ lineid" value="{{ form.line_id or '' }}">
+          <div class="form-text">ใช้ติดต่อนัดสัมภาษณ์</div></div>
+      </div>
+      <div class="mb-3"><label class="form-label" for="je">ประสบการณ์การทำงาน/กิจกรรม <span class="text-secondary fw-normal">(ถ้ามี)</span></label>
+        <textarea class="form-control" id="je" name="experience" rows="4" maxlength="2000" placeholder="ระบุประสบการณ์การทำงานหรือกิจกรรมที่เคยเข้าร่วม">{{ form.experience or '' }}</textarea></div>
+      {% if r.interview_info %}<div class="alert alert-secondary small"><i class="bi bi-calendar-event me-1"></i>{{ r.interview_info }}</div>{% endif %}
+      <div class="form-check mb-3"><input class="form-check-input" type="checkbox" name="consent" id="jc" required>
+        <label class="form-check-label small" for="jc">ยินยอมให้สโมสรนักศึกษาเก็บและใช้ข้อมูลในใบสมัครนี้เพื่อการคัดเลือกและติดต่อกลับเท่านั้น</label></div>
+      <button class="btn btn-sta btn-lg" {% if not open %}disabled{% endif %}><i class="bi bi-send"></i> ส่งใบสมัคร</button>
+    </form>
+  </div></div>
+</div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  // ตรวจรหัสนักศึกษาทันทีที่กรอกครบ 9 หลัก (ผลสุดท้ายตรวจที่เซิร์ฟเวอร์อีกครั้ง)
+  var input = document.getElementById('js'), hint = document.getElementById('jsHint'), major = document.getElementById('jm');
+  var lo = {{ r.min_year|int }}, hi = {{ r.max_year|int }};
+  function check() {
+    var v = input.value.replace(/\D/g, '');
+    if (v !== input.value) input.value = v;
+    if (v.length !== 9) { hint.textContent = 'ระบบตรวจชั้นปีจากรหัสนักศึกษา'; hint.className = 'form-text'; return; }
+    fetch('{{ url_for("auth.parse_code") }}?code=' + v).then(function (r) { return r.json(); }).then(function (d) {
+      if (!d.ok || d.account_type !== 'SCI') { hint.textContent = 'รหัสนี้ไม่ใช่นักศึกษาคณะวิทยาศาสตร์ฯ'; hint.className = 'form-text text-danger'; return; }
+      var ok = d.year_level >= lo && d.year_level <= hi;
+      hint.textContent = 'ชั้นปีที่ ' + d.year_level + (d.program ? ' · ' + d.program : '') + (ok ? '' : ' — รอบนี้ไม่เปิดรับชั้นปีนี้');
+      hint.className = 'form-text ' + (ok ? 'text-success' : 'text-danger');
+    }).catch(function () {});
+  }
+  input.addEventListener('input', check); check();
+})();
+</script>
+{% endblock %}

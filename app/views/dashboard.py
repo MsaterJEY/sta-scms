@@ -40,13 +40,14 @@ def index():
                 if r.get("status") not in ("CLOSED", "REJECTED", "CANCELLED")]
     my_hours = sum(float(h.get("hours") or 0) for h in repo().where("activity_hours", user_id=u["id"])) if activities_on else 0
     my_apps = repo().where("member_applications", user_id=u["id"])
+    my_join = repo().where("join_applications", student_code=u["student_code"]) if u.get("student_code") else []
     my_staff_apps = repo().where("activity_applications", user_id=u["id"]) if activities_on else []
     my_team_apps = repo().where("team_applications", user_id=u["id"])
     from .. import line
     line_banner = line.configured() and not u.get("line_banner_dismissed") and not line.link_of(u["id"])
     notes = sorted(repo().where("notifications", user_id=u["id"]), key=lambda n: n.get("created_at", ""), reverse=True)[:5]
     return render_template("dashboard/index.html", tasks=tasks, my_loans=my_loans, my_hours=my_hours,
-                           my_apps=my_apps, my_staff_apps=my_staff_apps, my_team_apps=my_team_apps, line_banner=line_banner, notes=notes, holdings=user_holdings(u["id"]))
+                           my_apps=my_apps, my_staff_apps=my_staff_apps, my_team_apps=my_team_apps, my_join=my_join, line_banner=line_banner, notes=notes, holdings=user_holdings(u["id"]))
 
 
 @bp.route("/notifications", methods=["GET", "POST"])

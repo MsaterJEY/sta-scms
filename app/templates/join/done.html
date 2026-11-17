@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% import "macros.html" as m with context %}
+{% block title %}ส่งใบสมัครสำเร็จ{% endblock %}
+{% block content %}
+<div class="row justify-content-center"><div class="col-lg-7">
+  <div class="card join-done">
+    <div class="join-done-top">
+      <div class="join-done-icon"><i class="bi bi-check-circle-fill"></i></div>
+      <h1 class="h4 text-white mb-1">ส่งใบสมัครสำเร็จ!</h1>
+      <div class="small">ระบบได้รับข้อมูลของคุณเรียบร้อยแล้ว</div>
+      <div class="join-done-code"><div class="small">รหัสการสมัคร</div><div class="fs-3 fw-bold font-monospace">{{ a.app_code }}</div></div>
+    </div>
+    <div class="card-body">
+      <dl class="join-dl mb-3">
+        <dt><i class="bi bi-person"></i> ชื่อ-สกุล</dt><dd>{{ name }}</dd>
+        <dt><i class="bi bi-person-vcard"></i> รหัสนักศึกษา</dt><dd>{{ a.student_code }}</dd>
+        <dt><i class="bi bi-mortarboard"></i> สาขาวิชา</dt><dd>{{ a.program }} · ชั้นปีที่ {{ a.year_level }}</dd>
+        <dt><i class="bi bi-diagram-3"></i> ฝ่ายที่สมัคร</dt><dd>{{ a.unit }}</dd>
+        <dt><i class="bi bi-clock"></i> วันเวลาที่สมัคร</dt><dd>{{ a.submitted_at|thaidate }}</dd>
+      </dl>
+      <div class="alert alert-warning small">กรุณาจดหรือบันทึกภาพ <strong>รหัสการสมัคร</strong> ไว้ ใช้คู่กับรหัสนักศึกษาเพื่อตรวจสอบสถานะและผลการคัดเลือก</div>
+      {% if r.interview_info %}<div class="alert alert-secondary small"><i class="bi bi-calendar-event me-1"></i>{{ r.interview_info }}</div>{% endif %}
+      <div class="d-flex flex-wrap gap-2">
+        <a class="btn btn-sta" href="{{ url_for('join.status') }}">ตรวจสอบสถานะ/ผล</a>
+        <a class="btn btn-outline-secondary" href="{{ url_for('public.home') }}">กลับหน้าหลัก</a>
+      </div>
+    </div>
+  </div>
+</div></div>
+{% endblock %}

@@ -552,3 +552,17 @@ body > .site-footer { flex-shrink: 0; }
   .oc-aides::before { bottom: .25rem; }
 }
 @media print { .oc { border: 0; padding: 0; overflow: visible; } }
+
+/* รับสมัครกรรมการ/อนุกรรมการ */
+.join-card { transition: transform .15s, box-shadow .15s; }
+.join-card.join-open { border-color: var(--sta-secondary); }
+.join-card:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgba(18, 59, 43, .10); }
+.join-done { overflow: hidden; }
+.join-done-top { background: linear-gradient(135deg, #064B35, #167A51); color: #E4F0E7; text-align: center; padding: 2rem 1.25rem 1.5rem; }
+.join-done-icon { font-size: 3.2rem; line-height: 1; color: #F0C83F; margin-bottom: .5rem; }
+.join-done-code { display: inline-block; margin-top: 1rem; padding: .6rem 1.5rem; border-radius: .85rem; background: rgba(255, 255, 255, .12); border: 1px solid rgba(255, 255, 255, .35); color: #fff; }
+.join-dl { display: grid; grid-template-columns: auto 1fr; gap: .5rem 1rem; margin: 0; }
+.join-dl dt { font-weight: 500; color: var(--sta-muted); white-space: nowrap; }
+.join-dl dt i { color: var(--sta-secondary); margin-right: .25rem; }
+.join-dl dd { margin: 0; font-weight: 500; overflow-wrap: anywhere; }
+@media (prefers-reduced-motion: reduce) { .join-card { transition: none; } }
