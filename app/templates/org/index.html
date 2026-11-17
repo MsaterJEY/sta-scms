@@ -12,15 +12,61 @@
 </div>
 {% endmacro %}
 
+{# กล่องตำแหน่งในผัง: ชื่อตำแหน่ง + ผู้ดำรงตำแหน่ง (ถ้าใส่รายชื่อไว้) #}
+{% macro box(n, cls='') %}
+<div class="oc-box {{ cls }}">
+  <div class="oc-pos">{{ n.name }}</div>
+  {% for p in n.members %}
+  <div class="oc-person"><span class="oc-avatar">{% if p.photo %}<img src="{{ p.photo }}" alt="" loading="lazy">{% else %}<i class="bi bi-person"></i>{% endif %}</span><span>{{ p.full_name }}</span></div>
+  {% endfor %}
+</div>
+{% endmacro %}
+
+{% macro branch(nodes) %}
+<ul class="oc-list">
+  {% for n in nodes %}
+  <li>{{ box(n, 'oc-sm') }}{% if n.children %}{{ branch(n.children) }}{% endif %}</li>
+  {% endfor %}
+</ul>
+{% endmacro %}
+
 {% block content %}
 {% call m.page_header('โครงสร้างองค์กร', 'สโมสรนักศึกษาคณะวิทยาศาสตร์ เทคโนโลยีและการเกษตร · ปีการศึกษา ' ~ year) %}
 <form><select class="form-select form-select-sm" name="year" aria-label="ปีการศึกษา" onchange="this.form.submit()">{% for y in years %}<option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>{% endfor %}</select></form>
 {% if can_manage %}<a class="btn btn-sm btn-sta" href="{{ url_for('org.manage', year=year) }}"><i class="bi bi-pencil"></i> ใส่ข้อมูล</a>{% endif %}
 {% endcall %}
 
+{% if chart_img %}
+<section class="org-section">
+  <h2 class="org-title">ผังโครงสร้างสโมสรนักศึกษา</h2>
+  <figure class="org-chart">
+    <a href="{{ chart_img.url }}" target="_blank" title="เปิดรูปขนาดเต็ม"><img src="{{ chart_img.url }}" alt="{{ chart_img.caption or 'ผังโครงสร้างสโมสรนักศึกษา ปีการศึกษา ' ~ year }}"></a>
+    <figcaption>{% if chart_img.caption %}{{ chart_img.caption }} · {% endif %}<a href="{{ chart_img.url }}" target="_blank"><i class="bi bi-arrows-fullscreen"></i> เปิดรูปขนาดเต็ม</a></figcaption>
+  </figure>
+</section>
+{% endif %}
+{% if tree %}
+<section class="org-section">
+  <h2 class="org-title">ผังโครงสร้างบอร์ดบริหาร ปีการศึกษา {{ year }}</h2>
+  <div class="oc" role="img" aria-label="ผังโครงสร้างบอร์ดบริหาร: {{ tree.root.name }} มีตำแหน่งขึ้นตรง {{ tree.aides|length + tree.columns|length }} ตำแหน่ง">
+    <div class="oc-top">{{ box(tree.root, 'oc-root') }}</div>
+    {% if tree.aides %}
+    <div class="oc-aides">{% for n in tree.aides %}{{ box(n, 'oc-aide') }}{% endfor %}</div>
+    {% endif %}
+    {% if tree.columns %}
+    <div class="oc-cols" style="--oc-n: {{ tree.columns|length }}">
+      {% for n in tree.columns %}
+      <div class="oc-col">{{ box(n, 'oc-head') }}{% if n.children %}{{ branch(n.children) }}{% endif %}</div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
 {% if not total %}
-<div class="panel text-center">{{ m.empty('ยังไม่มีข้อมูลโครงสร้างองค์กรของปีการศึกษา ' ~ year) }}</div>
+<div class="panel text-center">{{ m.empty('ยังไม่มีข้อมูลรายชื่อของปีการศึกษา ' ~ year) }}</div>
 {% else %}
+<h2 class="org-title mt-5">รายชื่อและรายละเอียด</h2>
 {% if advisors %}
 <section class="org-section"><h2 class="org-title">อาจารย์ที่ปรึกษา</h2>
   <div class="org-grid org-grid-center">{% for p in advisors %}{{ person(p) }}{% endfor %}</div></section>

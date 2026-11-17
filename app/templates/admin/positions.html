@@ -15,17 +15,40 @@
 </div>
 {% endif %}
 <div class="row g-3">
-<div class="col-lg-8"><div class="card"><div class="table-responsive"><table class="table table-sm mb-0 align-middle">
-  <thead><tr><th>ตำแหน่ง</th><th>ระดับ</th><th>กอง</th><th>ขึ้นกับ</th><th>หน้าที่ของระบบ</th><th>ผู้ถือ</th><th></th></tr></thead><tbody>
-  {% for p in pos %}<tr><td>{{ p.name }}{% if p.locked_required %} <i class="bi bi-lock-fill text-secondary" title="locked"></i>{% endif %}
-      <div class="small text-secondary">{{ p.code }}{% if not p.academic_year %} · ใช้ทุกปี{% endif %}{% if not p.single_holder %} · หลายคน{% endif %}</div></td>
-    <td class="small">{{ p.level }}</td><td class="small">{{ p.division_id or '-' }}</td><td class="small">{{ p.parent_name or '-' }}</td>
-    <td class="small">{{ functions.get(p.function_code or '', ('-',))[0] if p.function_code else '-' }}
-      {% if p.fallback_functions %}<div class="text-secondary">ว่าง → {% for x in p.fallback_functions %}{{ functions.get(x, (x,))[0] }}{{ ', ' if not loop.last }}{% endfor %}</div>{% endif %}</td>
-    <td class="small">{% if p.holder_count %}{{ p.holder_count }}{% else %}<span class="text-{{ 'danger' if p.locked_required else 'secondary' }}">ว่าง</span>{% endif %}</td>
-    <td class="text-nowrap"><a class="btn btn-sm btn-outline-secondary" href="?year={{ year }}&amp;edit={{ p.id }}">แก้ไข</a></td></tr>
-  {% else %}<tr><td colspan="7">{{ m.empty('ปีนี้ยังไม่มีผัง — คัดลอกจากปีก่อนได้ที่ด้านขวา') }}</td></tr>{% endfor %}
-  </tbody></table></div></div></div>
+<div class="col-lg-8">
+  <div class="d-flex flex-wrap gap-2 mb-3 small text-secondary">
+    <span><i class="bi bi-lock-fill"></i> ตำแหน่ง locked (ต้องมีผู้ถือก่อนเปิดวาระ)</span>
+    <span>· <span class="badge text-bg-success">มีผู้ถือ</span> <span class="badge text-bg-secondary">ว่าง</span> <span class="badge text-bg-danger">ว่าง (จำเป็น)</span></span>
+  </div>
+  {% for g in groups %}
+  <div class="card mb-3"><div class="card-header d-flex justify-content-between align-items-center"><span><i class="bi bi-{{ g.icon }} me-2 text-sta"></i>{{ g.title }}</span><span class="text-secondary fw-normal small">{{ g.rows|length }} ตำแหน่ง</span></div>
+    <ul class="list-group list-group-flush">
+      {% for p in g.rows %}
+      <li class="list-group-item pos-row {{ 'pos-active' if edit and edit.id == p.id }}">
+        <div class="pos-main" style="padding-left: {{ [p.depth, 3]|min * 1.25 }}rem">
+          {% if p.depth %}<i class="bi bi-arrow-return-right text-secondary me-1" aria-hidden="true"></i>{% endif %}
+          <span class="pos-name">{{ p.name }}</span>{% if p.locked_required %} <i class="bi bi-lock-fill text-secondary" title="locked"></i>{% endif %}
+          <div class="pos-meta">
+            {% if p.level != 'BOARD' %}<span class="badge text-bg-light">{{ {'COMMITTEE': 'กรรมการ', 'SUBCOMMITTEE': 'อนุกรรมการ', 'STAFF': 'อาจารย์ที่ปรึกษา'}.get(p.level, p.level) }}</span>{% endif %}
+            {% if p.function_code %}<span class="badge text-bg-info" title="หน้าที่ของระบบ">{{ functions.get(p.function_code, (p.function_code,))[0] }}</span>{% endif %}
+            {% if p.fallback_functions %}<span class="badge text-bg-warning">ว่าง → {% for x in p.fallback_functions %}{{ functions.get(x, (x,))[0] }}{{ ', ' if not loop.last }}{% endfor %}</span>{% endif %}
+            {% if not p.single_holder %}<span class="badge text-bg-light">ถือได้หลายคน</span>{% endif %}
+            {% if not p.academic_year %}<span class="badge text-bg-light">ใช้ทุกปี</span>{% endif %}
+            <span class="text-secondary">{{ p.code }}</span>
+          </div>
+        </div>
+        <div class="pos-side">
+          {% if p.holder_count %}<span class="badge text-bg-success">มีผู้ถือ {{ p.holder_count }}</span>
+          {% else %}<span class="badge text-bg-{{ 'danger' if p.locked_required else 'secondary' }}">ว่าง</span>{% endif %}
+          <a class="btn btn-sm btn-outline-secondary" href="?year={{ year }}&amp;edit={{ p.id }}"><i class="bi bi-pencil"></i> แก้ไข</a>
+        </div>
+      </li>
+      {% endfor %}
+    </ul></div>
+  {% else %}
+  <div class="card"><div class="card-body">{{ m.empty('ปีนี้ยังไม่มีผัง — คัดลอกจากปีก่อนได้ที่ด้านขวา') }}</div></div>
+  {% endfor %}
+</div>
 <div class="col-lg-4">
   <div class="card mb-3"><div class="card-header">{{ 'แก้ไขตำแหน่ง' if edit else 'เพิ่มตำแหน่ง' }}</div><div class="card-body">
     <form method="post">{{ m.csrf() }}<input type="hidden" name="action" value="position"><input type="hidden" name="year" value="{{ year }}">
@@ -53,7 +76,12 @@
       <button class="btn btn-sm btn-sta text-nowrap">คัดลอกผัง</button></form>
     <div class="form-text">ใช้เตรียมผังของวาระถัดไป แล้วแก้ รวม แยก หรือเปลี่ยนชื่อฝ่ายได้โดยไม่กระทบวาระปัจจุบัน</div></div></div>
   <div class="card"><div class="card-header">กอง</div><ul class="list-group list-group-flush">
-    {% for d in divs %}<li class="list-group-item small">{{ d.code }} — {{ d.name }}</li>{% endfor %}</ul>
+    {% for d in divs %}<li class="list-group-item"><form method="post" class="d-flex gap-2 align-items-center">{{ m.csrf() }}<input type="hidden" name="year" value="{{ year }}"><input type="hidden" name="code" value="{{ d.id }}">
+      <span class="small text-secondary text-nowrap" style="min-width:5.5rem">{{ d.id }}</span>
+      <input class="form-control form-control-sm" name="name" value="{{ d.name }}" maxlength="80" required aria-label="ชื่อกอง {{ d.id }}">
+      <button name="action" value="rename_division" class="btn btn-sm btn-outline-secondary text-nowrap"><i class="bi bi-pencil"></i> แก้ไข</button>
+      <button name="action" value="delete_division" class="btn btn-sm btn-outline-danger" data-confirm="ลบกอง {{ d.name }}?" aria-label="ลบกอง"><i class="bi bi-trash"></i></button></form></li>{% endfor %}</ul>
+    <div class="card-body border-bottom py-2"><div class="form-text mt-0">แก้ชื่อแล้วกด "แก้ไข" ชื่อใหม่จะแสดงทุกหน้าทันที รหัสกองไม่เปลี่ยน ข้อมูลเดิมจึงไม่กระทบ · ลบได้เฉพาะกองที่ไม่มีข้อมูลอ้างถึง</div></div>
     <div class="card-body border-bottom"><form method="post">{{ m.csrf() }}<input type="hidden" name="action" value="seed_defaults"><input type="hidden" name="year" value="{{ year }}">
       <button class="btn btn-sm btn-outline-secondary">เพิ่มกอง/ตำแหน่งตั้งต้นที่ยังไม่มี</button></form>
       <div class="form-text">ใช้หลังอัปเดตระบบ เพื่อเพิ่มกองและตำแหน่งกรรมการ/อนุกรรมการที่มากับรุ่นใหม่ ไม่แก้ข้อมูลที่มีอยู่</div></div>

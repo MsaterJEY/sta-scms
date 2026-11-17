@@ -1048,6 +1048,108 @@ with app.app_context():
     asec.post("/admin/roster/", data={"action": "clear", "year": 2569, "member_type": "SUBCOMM"})
     check(not repo().all("member_roster") and not repo().where("position_holders", user_id=new_u["id"], status="ACTIVE"), "clear roster ends roster positions")
 
+    print("== edit buttons for admin and ADMIN_SEC")
+    # ชื่อกอง
+    admin.post("/admin/positions", data={"action": "rename_division", "year": 2569, "code": "SECRETARY", "name": "กองเลขานุการ"})
+    check(repo().get("divisions", "SECRETARY")["name"] == "กองเลขานุการ", "admin renames a division")
+    check("กองเลขานุการ" in admin.get("/admin/roster/").get_data(as_text=True), "new division name shows on other pages")
+    asec.post("/admin/holders", data={"action": "rename_division", "year": 2569, "code": "SECRETARY", "name": "กองเลขา"})
+    check(repo().get("divisions", "SECRETARY")["name"] == "กองเลขา", "ADMIN_SEC renames a division from the holders page")
+    check(stu.post("/admin/holders", data={"action": "rename_division", "code": "SECRETARY", "name": "x"}).status_code == 403
+          and asec.post("/admin/positions", data={"action": "rename_division", "code": "SECRETARY", "name": "x"}).status_code == 403,
+          "others cannot rename divisions")
+    admin.post("/admin/positions", data={"action": "delete_division", "year": 2569, "code": "ADMIN"})
+    check(repo().get("divisions", "ADMIN"), "division in use cannot be deleted")
+    admin.post("/admin/positions", data={"action": "division", "year": 2569, "code": "TEMPDIV", "name": "กองชั่วคราว"})
+    admin.post("/admin/positions", data={"action": "delete_division", "year": 2569, "code": "TEMPDIV"})
+    check(not repo().get("divisions", "TEMPDIV"), "unused division deleted")
+    # ปีการศึกษา
+    admin.post("/admin/years", data={"action": "add", "year": 2571})
+    admin.post("/admin/years", data={"action": "edit", "year": "2571", "start_date": "2028-06-01", "end_date": "2029-05-31"})
+    check(repo().get("academic_years", "2571")["end_date"] == "2029-05-31", "edit academic year dates")
+    admin.post("/admin/years", data={"action": "delete", "year": "2569"})
+    check(repo().get("academic_years", "2569"), "current academic year cannot be deleted")
+    admin.post("/admin/years", data={"action": "delete", "year": "2571"})
+    check(not repo().get("academic_years", "2571"), "unused academic year deleted")
+    # ผู้ถือตำแหน่ง
+    hh = repo().where("position_holders", position_id="PR_VP", academic_year=2569, status="ACTIVE")[0]
+    check("แก้ไขผู้ถือตำแหน่ง" in get_ok(asec, f"/admin/holders?year=2569&edit={hh['id']}").get_data(as_text=True), "holder edit form")
+    asec.post("/admin/holders", data={"action": "edit", "year": 2569, "holder_id": hh["id"], "position_id": "PRES", "start_date": "2026-06-01"})
+    check(repo().get("position_holders", hh["id"])["position_id"] == "PR_VP", "cannot move a holder into an occupied single-holder position")
+    asec.post("/admin/holders", data={"action": "edit", "year": 2569, "holder_id": hh["id"], "position_id": "PR_SEC", "start_date": "2026-06-15"})
+    hh2 = repo().get("position_holders", hh["id"])
+    check(hh2["position_id"] == "PR_SEC" and hh2["start_date"] == "2026-06-15", "ADMIN_SEC edits a holder's position and start date")
+    asec.post("/admin/holders", data={"action": "edit", "year": 2569, "holder_id": hh["id"], "position_id": "PR_VP", "start_date": "2026-06-15"})
+    # ทะเบียนกรรมการ/อนุกรรมการ
+    repo().set("member_roster", "2569_SUBCOMM_406865010", {"academic_year": 2569, "member_type": "SUBCOMM", "student_code": "406865010",
+               "first_name": "นักศึกษา", "last_name": "ทดสอบ", "program": "", "unit": "ฝ่ายสื่อ", "year_level": 2, "status_text": "ปกติ",
+               "division_id": "PR", "position_id": "SUB_PR", "user_id": None, "holder_id": None})
+    from app.views.roster import attach_user
+    attach_user(repo().get("users", stu_id))
+    check("แก้ไข: 406865010" in get_ok(asec, "/admin/roster/?year=2569&edit=2569_SUBCOMM_406865010").get_data(as_text=True), "roster edit form")
+    asec.post("/admin/roster/", data={"action": "edit", "year": 2569, "roster_id": "2569_SUBCOMM_406865010", "first_name": "นักศึกษา",
+                                      "last_name": "แก้แล้ว", "division_id": "SECRETARY", "unit": "ฝ่ายเอกสาร", "program": "ไอที",
+                                      "year_level": 3, "status_text": "ปกติ"})
+    re_ = repo().get("member_roster", "2569_SUBCOMM_406865010")
+    check(re_["last_name"] == "แก้แล้ว" and re_["position_id"] == "SUB_SECRETARY" and re_["year_level"] == 3, "roster row edited")
+    check(repo().where("position_holders", user_id=stu_id, position_id="SUB_SECRETARY", status="ACTIVE")
+          and not repo().where("position_holders", user_id=stu_id, position_id="SUB_PR", status="ACTIVE"), "moving division moves the position")
+    asec.post("/admin/roster/", data={"action": "delete", "year": 2569, "roster_id": "2569_SUBCOMM_406865010"})
+    # หมวด FAQ
+    fc = repo().add("faq_categories", {"name": "หมวดเดิม"})
+    asec.post("/manage/faq", data={"action": "category_rename", "category_id": fc, "name": "หมวดใหม่"})
+    check(repo().get("faq_categories", fc)["name"] == "หมวดใหม่", "rename FAQ category")
+    asec.post("/manage/faq", data={"action": "category_delete", "category_id": fc})
+    check(not repo().get("faq_categories", fc), "delete empty FAQ category")
+
+    print("== media division rename, grouped positions page, org chart image")
+    from app.seed import apply_renames
+    check(repo().get("divisions", "PR")["name"] == "กองสื่อ" and repo().get("positions", "PR_VP")["name"] == "อุปนายกฝ่ายยุทธศาสตร์สื่อ"
+          and repo().get("positions", "SUB_PR")["name"] == "อนุกรรมการกองสื่อ", "media division and VP use the new default names")
+    repo().update("divisions", "PR", {"name": "กองประชาสัมพันธ์"})
+    repo().update("positions", "PR_VP", {"name": "ชื่อที่ผู้ดูแลตั้งเอง"})
+    admin.post("/admin/positions", data={"action": "seed_defaults", "year": 2569})
+    check(repo().get("divisions", "PR")["name"] == "กองสื่อ" and repo().get("positions", "PR_VP")["name"] == "ชื่อที่ผู้ดูแลตั้งเอง",
+          "update button renames old default names only, keeps custom names")
+    repo().update("positions", "PR_VP", {"name": "อุปนายกฝ่ายยุทธศาสตร์สื่อ"})
+    pg = get_ok(admin, "/admin/positions").get_data(as_text=True)
+    check(pg.index("</i>ส่วนกลาง (ไม่สังกัดกอง)</span>") < pg.index("</i>กองบริหารและสัมพันธ์</span>") < pg.index("</i>กองสื่อ</span>")
+          and "อุปนายกฝ่ายยุทธศาสตร์สื่อ" in pg,
+          "positions page groups by division in chart order")
+    check("pos-active" in admin.get("/admin/positions?edit=PR_VP").get_data(as_text=True), "edited position is highlighted")
+    check(app.test_client().get("/org/chart/2569").status_code == 404, "no chart image yet")
+    psec.post("/org/manage", content_type="multipart/form-data",
+              data={"action": "chart_upload", "year": 2569, "caption": "ผังบอร์ด 69", "chart": (io.BytesIO(jpg), "chart.jpg")})
+    oc = repo().get("org_charts", "2569")
+    check(oc and oc["caption"] == "ผังบอร์ด 69" and app.test_client().get("/org/chart/2569").data == jpg, "org chart image uploaded and public")
+    opg = app.test_client().get("/org/").get_data(as_text=True)
+    check("/org/chart/2569" in opg and "ผังบอร์ด 69" in opg and "ผังโครงสร้างสโมสรนักศึกษา" in opg, "chart image embedded on the public org page")
+    check(stu.post("/org/manage", data={"action": "chart_delete", "year": 2569}).status_code == 403 and repo().get("org_charts", "2569"),
+          "only org managers change the chart image")
+    psec.post("/org/manage", data={"action": "chart_delete", "year": 2569})
+    check(not repo().get("org_charts", "2569") and "/org/chart/2569" not in app.test_client().get("/org/").get_data(as_text=True), "chart image removed")
+
+    print("== board chart drawn from data")
+    from app.views.org import board_tree
+    tr = board_tree(2569, [])
+    check(tr["root"]["id"] == "PRES" and {n["id"] for n in tr["aides"]} == {"PRES_SEC", "TREASURER"}
+          and [n["id"] for n in tr["columns"]] == ["ADMIN_VP", "ACT_VP", "PR_VP", "POLICY_VP"], "chart: president, two aides, four VP columns in board order")
+    col = {n["id"]: n for n in tr["columns"]}
+    check({c["id"] for c in col["ADMIN_VP"]["children"]} == {"ADMIN_SEC", "PERSONNEL_HEAD", "FUNDRAISING_HEAD", "EQUIP_HEAD", "WELFARE_HEAD"}
+          and {c["id"] for c in col["ACT_VP"]["children"]} == {"ACT_SEC", "ACADEMIC_HEAD", "SPORT_HEAD", "VOLUNTEER_HEAD", "CULTURE_HEAD"}
+          and not col["POLICY_VP"]["children"], "chart: units under each VP match the whiteboard")
+    media = col["PR_VP"]["children"]
+    check([c["id"] for c in media] == ["PR_SEC", "MEDIA_HEAD"]
+          and {c["id"] for c in media[1]["children"]} == {"CONTENT_TEAM", "PHOTO_HEAD", "VIDEO_HEAD", "BANNER_HEAD"}, "chart: media teams nested under the media head")
+    psec.post("/org/manage", data={"action": "save", "year": 2569, "first_name": "อัง", "last_name": "ทดสอบ", "position_id": "PRES"})
+    opg = app.test_client().get("/org/").get_data(as_text=True)
+    check("ผังโครงสร้างบอร์ดบริหาร" in opg and "oc-root" in opg and opg.index("oc-root") < opg.index("อัง ทดสอบ") < opg.index("oc-aides"),
+          "public page draws the chart with the holder's name in the box")
+    check("ผังโครงสร้างบอร์ดบริหาร" in app.test_client().get("/org/?year=2570").get_data(as_text=True)
+          and "ผังโครงสร้างบอร์ดบริหาร" not in app.test_client().get("/org/?year=2580").get_data(as_text=True), "chart follows each year's own board positions")
+    for x in repo().where("org_members", first_name="อัง"):
+        repo().delete("org_members", x["id"])
+
     print("== admin menu access")
     asec_c = client_for("406765004")
     check("ผู้ถือตำแหน่งตามวาระ" in get_ok(asec_c, "/admin/holders", "holders as ADMIN_SEC").get_data(as_text=True), "ADMIN_SEC uses holders page")

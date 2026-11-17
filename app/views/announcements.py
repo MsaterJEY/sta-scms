@@ -236,6 +236,13 @@ def faq_manage():
             repo().delete("faqs", f.get("faq_id"))
         elif action == "category" and f.get("name", "").strip():
             repo().add("faq_categories", {"name": f["name"].strip()})
+        elif action == "category_rename" and f.get("name", "").strip() and repo().get("faq_categories", f.get("category_id")):
+            repo().update("faq_categories", f["category_id"], {"name": f["name"].strip()[:60]})
+        elif action == "category_delete":
+            if repo().where("faqs", category_id=f.get("category_id")):
+                flash("หมวดนี้ยังมีคำถามอยู่ ย้ายหรือลบคำถามก่อน", "danger")
+                return redirect(url_for("announcements.faq_manage"))
+            repo().delete("faq_categories", f.get("category_id"))
         audit(f"faq.{action}", "faq", f.get("faq_id"))
         flash("บันทึกแล้ว", "success")
         return redirect(url_for("announcements.faq_manage"))

@@ -33,7 +33,7 @@ LEVELS = [
 DIVISIONS = [
     ("ADMIN", "กองบริหารและสัมพันธ์"),
     ("ACTIVITY", "กองกิจกรรม"),
-    ("PR", "กองประชาสัมพันธ์"),
+    ("PR", "กองสื่อ"),
     ("POLICY", "กองแผนและนโยบาย"),
     # กองเลขา: กรรมการ/อนุกรรมการฝ่ายเอกสาร (ไม่มีตำแหน่งระดับบอร์ดของกองเอง)
     ("SECRETARY", "กองเลขา"),
@@ -56,7 +56,7 @@ BOARD_CHART = [
     ("SPORT_HEAD", "หัวหน้าฝ่ายกีฬาและนันทนาการ", "ACTIVITY", "UNIT_HEAD", "ACT_VP", True, False),
     ("VOLUNTEER_HEAD", "หัวหน้าฝ่ายจิตอาสา", "ACTIVITY", "", "ACT_VP", True, False),
     ("CULTURE_HEAD", "หัวหน้าฝ่ายวัฒนธรรม", "ACTIVITY", "UNIT_HEAD", "ACT_VP", True, False),
-    ("PR_VP", "อุปนายกฝ่ายประชาสัมพันธ์", "PR", "PR_VP", "PRES", True, False),
+    ("PR_VP", "อุปนายกฝ่ายยุทธศาสตร์สื่อ", "PR", "PR_VP", "PRES", True, False),
     ("PR_SEC", "เลขาฝ่ายประชาสัมพันธ์", "PR", "PR_SEC", "PR_VP", True, False),
     ("MEDIA_HEAD", "หัวหน้าฝ่ายสื่อ", "PR", "MEDIA_HEAD", "PR_VP", True, False),
     ("CONTENT_TEAM", "ทีม Reels/คอนเทนต์", "PR", "PR_DRAFT", "MEDIA_HEAD", False, False),
@@ -109,6 +109,26 @@ FAQ_CATEGORIES = [("GENERAL", "ทั่วไป"), ("EQUIPMENT", "ยืม-�
 EQP_CATEGORIES = [("AV", "เครื่องเสียง/ภาพ"), ("TENT", "เต็นท์/โต๊ะ/เก้าอี้"), ("SPORT", "อุปกรณ์กีฬา"), ("OTHER", "อื่น ๆ")]
 
 
+# ชื่อตั้งต้นที่เปลี่ยนในรุ่นใหม่: (collection, id, ชื่อเดิม, ชื่อใหม่) — เปลี่ยนให้เฉพาะรายการที่ยังใช้ชื่อเดิมอยู่
+# รายการที่ผู้ดูแลตั้งชื่อเองแล้วจะไม่ถูกแตะ
+RENAMES = [
+    ("divisions", "PR", "กองประชาสัมพันธ์", "กองสื่อ"),
+    ("positions", "PR_VP", "อุปนายกฝ่ายประชาสัมพันธ์", "อุปนายกฝ่ายยุทธศาสตร์สื่อ"),
+    ("positions", "COMM_PR", "กรรมการกองประชาสัมพันธ์", "กรรมการกองสื่อ"),
+    ("positions", "SUB_PR", "อนุกรรมการกองประชาสัมพันธ์", "อนุกรรมการกองสื่อ"),
+]
+
+
+def apply_renames():
+    n = 0
+    for col, doc_id, old, new in RENAMES:
+        d = repo().get(col, doc_id)
+        if d and d.get("name") == old:
+            repo().update(col, doc_id, {"name": new})
+            n += 1
+    return n
+
+
 def run_seed(year=2569):
     """อ่านรายการที่มีอยู่ครั้งเดียวต่อคอลเลกชัน แล้วเขียนทั้งหมดใน batch เดียว (กัน timeout บน serverless)"""
     r = repo()
@@ -148,6 +168,7 @@ def run_seed(year=2569):
     put("system_settings", "main", s)
     put("system_settings", "seed_info", {"seeded_at": now_iso()}, overwrite=True)
     r.set_many(items)
+    apply_renames()
 
 
 # ---------- ย้ายระบบที่สร้างไว้ก่อน SRS v3 (หัวข้อ 9) ----------

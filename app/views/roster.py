@@ -210,6 +210,34 @@ def index():
                                                     "skipped": skipped, "filename": fs.filename[:120],
                                                     "created_by": current_user()["id"], "created_at": now_iso()})
                 return redirect(url_for("roster.preview", iid=iid))
+        elif action == "edit":
+            e = repo().get("member_roster", f.get("roster_id")) or abort(404)
+            mtype = e.get("member_type")
+            level = TYPES[mtype][1]
+            div_pos = {p.get("division_id"): p["id"] for p in _positions(e["academic_year"]).values()
+                       if p.get("level") == level and p.get("division_id")}
+            div = f.get("division_id")
+            yl = clean_code(f.get("year_level"))
+            new = {"first_name": f.get("first_name", "").strip()[:80], "last_name": f.get("last_name", "").strip()[:80],
+                   "program": f.get("program", "").strip()[:120], "unit": f.get("unit", "").strip()[:120],
+                   "status_text": f.get("status_text", "").strip()[:60],
+                   "year_level": int(yl) if yl.isdigit() and len(yl) == 1 else None}
+            if not new["first_name"]:
+                flash("กรุณากรอกชื่อ", "danger")
+            elif div not in div_pos:
+                flash("กรุณาเลือกกอง", "danger")
+            else:
+                if div_pos[div] != e.get("position_id"):
+                    _end_holder(e)  # ย้ายกอง: สิ้นสุดตำแหน่งเดิม แล้วให้ตำแหน่งของกองใหม่
+                    new.update({"division_id": div, "position_id": div_pos[div], "holder_id": None})
+                repo().update("member_roster", e["id"], new)
+                e = repo().get("member_roster", e["id"])
+                if e.get("user_id"):
+                    u = repo().get("users", e["user_id"])
+                    if u:
+                        _ensure_holder(u, e)
+                audit("roster.edit", "member_roster", e["id"], new={k: new[k] for k in ("first_name", "last_name", "unit", "status_text")})
+                flash("แก้ไขรายชื่อแล้ว", "success")
         elif action == "delete":
             e = repo().get("member_roster", f.get("roster_id")) or abort(404)
             _end_holder(e)
@@ -232,7 +260,9 @@ def index():
     stats = {k: {"all": sum(1 for r in everyone if r.get("member_type") == k),
                  "linked": sum(1 for r in everyone if r.get("member_type") == k and r.get("user_id"))} for k in TYPES}
     divisions = {d["id"]: d for d in repo().all("divisions")}
+    edit = repo().get("member_roster", request.args.get("edit")) if request.args.get("edit") else None
     return render_template("admin/roster.html", year=year, rows=rows, stats=stats, types=TYPES, divisions=divisions,
+                           edit=edit if edit and edit.get("academic_year") == year else None,
                            args=request.args, years=sorted(repo().all("academic_years"), key=lambda y: y["id"]))
 
 

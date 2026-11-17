@@ -27,6 +27,15 @@ def photo_url(m):
     return url_for("org.photo", mid=m["id"], v=v)
 
 
+def chart_image(year):
+    """รูปผังโครงสร้างของปีนั้น (อัปโหลดโดยผู้มีสิทธิ์ org.manage) คืน dict พร้อม url หรือ None"""
+    c = repo().get("org_charts", str(year))
+    if not c or not c.get("file_path"):
+        return None
+    v = hashlib.md5(c["file_path"].encode()).hexdigest()[:8]
+    return dict(c, url=url_for("org.chart", year=year, v=v))
+
+
 def _depth(pos, by_id):
     """ลำดับชั้นของตำแหน่งในผัง (นายก = 0)"""
     d, seen = 0, set()
@@ -58,6 +67,36 @@ def chart(year):
     return rows, divisions
 
 
+def board_tree(year, rows):
+    """ผังบอร์ดวาดจากข้อมูล: ตำแหน่งระดับบอร์ดของปีนั้นตามช่อง "ขึ้นกับตำแหน่ง" พร้อมรายชื่อที่ใส่ไว้
+
+    คืน {root, aides, columns}: root = ตำแหน่งบนสุด, aides = ตำแหน่งที่ขึ้นตรงและไม่สังกัดกอง (เลขา เหรัญญิก),
+    columns = ตำแหน่งที่ขึ้นตรงและสังกัดกอง (อุปนายกแต่ละกอง) พร้อมตำแหน่งใต้สังกัดเป็นชั้น ๆ
+    """
+    positions = [p for p in repo().all("positions") if p.get("level") == "BOARD" and in_year(p, year)]
+    if not positions:
+        return None
+    ids = {p["id"] for p in positions}
+    people = {}
+    for m in rows:
+        people.setdefault(m.get("position_id"), []).append(m)
+    order = {d: i for i, d in enumerate(DIVISION_ORDER)}
+
+    def node(p):
+        kids = [c for c in positions if c.get("parent_id") == p["id"]]
+        # ตำแหน่งที่มีผู้ใต้สังกัดอยู่ท้าย (เช่น ฝ่ายสื่อ) ตามแบบที่วาด; ที่เหลือคงลำดับตามผัง
+        kids.sort(key=lambda c: (order.get(c.get("division_id"), 99), any(x.get("parent_id") == c["id"] for x in positions)))
+        return {"id": p["id"], "name": p.get("name"), "division_id": p.get("division_id"), "members": people.get(p["id"], []),
+                "children": [node(c) for c in kids]}
+
+    roots = [p for p in positions if p.get("parent_id") not in ids]
+    roots.sort(key=lambda p: (p.get("division_id") is not None, p.get("name") or ""))
+    root = node(roots[0])
+    extra = [node(p) for p in roots[1:]]  # ตำแหน่งที่ยังไม่ได้กำหนดว่าขึ้นกับใคร
+    return {"root": root, "aides": [c for c in root["children"] if not c["division_id"]],
+            "columns": [c for c in root["children"] if c["division_id"]] + extra}
+
+
 def sections(rows, divisions):
     """จัดกลุ่มสำหรับแสดงผล: ส่วนกลาง (ไม่สังกัดกอง) แล้วตามด้วยกองตามลำดับผัง"""
     top = [m for m in rows if not m["division_id"] and m["level"] == "BOARD"]
@@ -86,8 +125,18 @@ def index():
     rows, divisions = chart(year)
     top, advisors, groups, loose = sections(rows, divisions)
     return render_template("org/index.html", year=year, years=_years_with_data(), total=len(rows), top=top,
+                           chart_img=chart_image(year), tree=board_tree(year, rows),
                            advisors=advisors, groups=groups, loose=loose,
                            can_manage=bool(current_user()) and can("org.manage"))
+
+
+@bp.route("/chart/<int:year>", endpoint="chart")
+def chart_file(year):
+    c = repo().get("org_charts", str(year))
+    if not c or not c.get("file_path"):
+        abort(404)
+    return Response(load_bytes(c["file_path"]), mimetype=mimetype_for(c["file_path"]),
+                    headers={"Cache-Control": "public, max-age=86400"})
 
 
 @bp.route("/photo/<mid>")
@@ -113,7 +162,26 @@ def manage():
         m = repo().get("org_members", f.get("member_id")) if f.get("member_id") else None
         if m and m.get("academic_year") != year:
             abort(404)
-        if action == "save":
+        if action in ("chart_upload", "chart_delete"):
+            old = repo().get("org_charts", str(year))
+            if action == "chart_upload":
+                try:
+                    blob, ext, ctype = validate_upload(request.files.get("chart"), images_only=True, allow_pdf=False)
+                except UploadError as e:
+                    flash(f"รูปผัง: {e}", "danger")
+                    return redirect(url_for("org.manage", year=year))
+                repo().set("org_charts", str(year), {"academic_year": year, "file_path": save_bytes("org_chart", blob, ext, ctype),
+                                                     "caption": f.get("caption", "").strip()[:200],
+                                                     "updated_by": current_user()["id"], "updated_at": now_iso()})
+                audit("org.chart_upload", "org_chart", str(year))
+                flash("อัปโหลดรูปผังแล้ว แสดงในหน้าโครงสร้างองค์กรทันที", "success")
+            elif old:
+                repo().delete("org_charts", str(year))
+                audit("org.chart_delete", "org_chart", str(year))
+                flash("ลบรูปผังแล้ว", "info")
+            if old and old.get("file_path"):
+                delete_file(old["file_path"])
+        elif action == "save":
             data = {"first_name": f.get("first_name", "").strip()[:80], "last_name": f.get("last_name", "").strip()[:80],
                     "student_code": f.get("student_code", "").strip()[:20], "program_code": f.get("program_code") or None,
                     "position_id": f.get("position_id"), "position_title": f.get("position_title", "").strip()[:120],
@@ -181,4 +249,5 @@ def manage():
     if edit:
         edit["photo"] = photo_url(edit)
     return render_template("org/manage.html", year=year, years=_years_with_data(), rows=rows, positions=positions,
+                           chart_img=chart_image(year),
                            programs=programs, edit=edit if edit and edit.get("academic_year") == year else None)

@@ -22,7 +22,18 @@
       {% else %}<tr><td colspan="6">{{ m.empty('ยังไม่มีรายชื่อ — เพิ่มทีละคนด้านขวา หรือกด "นำเข้าจากผู้ถือตำแหน่ง"') }}</td></tr>{% endfor %}
       </tbody></table></div></div>
 </div>
-<div class="col-lg-5"><div class="card"><div class="card-header">{{ 'แก้ไขข้อมูล' if edit else 'เพิ่มรายชื่อ' }}</div><div class="card-body">
+<div class="col-lg-5">
+  <div class="card mb-3"><div class="card-header"><i class="bi bi-diagram-3 me-1"></i>รูปผังโครงสร้าง ปี {{ year }}</div><div class="card-body">
+    {% if chart_img %}<a href="{{ chart_img.url }}" target="_blank"><img class="org-chart-thumb mb-2" src="{{ chart_img.url }}" alt="รูปผังปัจจุบัน"></a>{% endif %}
+    <form method="post" enctype="multipart/form-data">{{ m.csrf() }}<input type="hidden" name="action" value="chart_upload"><input type="hidden" name="year" value="{{ year }}">
+      <input class="form-control mb-2" type="file" name="chart" accept="image/jpeg,image/png,image/webp" required aria-label="รูปผังโครงสร้าง">
+      <input class="form-control mb-2" name="caption" maxlength="200" placeholder="คำอธิบายรูป (ไม่บังคับ)" value="{{ chart_img.caption if chart_img else '' }}">
+      <div class="form-text mb-2">อัปโหลดรูปผังที่ออกแบบไว้ (JPG/PNG/WEBP ไม่เกิน {{ config.MAX_FILE_MB }} MB) ระบบจะฝังรูปไว้ด้านบนของหน้าโครงสร้างองค์กร ตามด้วยรายชื่อด้านล่าง · รูปที่กว้างเกิน 1600 px จะถูกย่ออัตโนมัติ</div>
+      <button class="btn btn-sta">{{ 'เปลี่ยนรูปผัง' if chart_img else 'อัปโหลดรูปผัง' }}</button></form>
+    {% if chart_img %}<form method="post" class="mt-2" data-confirm="ลบรูปผังของปี {{ year }}?">{{ m.csrf() }}<input type="hidden" name="action" value="chart_delete"><input type="hidden" name="year" value="{{ year }}">
+      <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i> ลบรูปผัง</button></form>{% endif %}
+  </div></div>
+  <div class="card"><div class="card-header">{{ 'แก้ไขข้อมูล' if edit else 'เพิ่มรายชื่อ' }}</div><div class="card-body">
   <form method="post" enctype="multipart/form-data">{{ m.csrf() }}<input type="hidden" name="action" value="save"><input type="hidden" name="year" value="{{ year }}">
     {% if edit %}<input type="hidden" name="member_id" value="{{ edit.id }}">{% endif %}
     <div class="row g-2 mb-2">

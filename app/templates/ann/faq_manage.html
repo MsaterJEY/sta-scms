@@ -19,7 +19,12 @@
       <div class="row g-2 mb-2"><div class="col-6"><input class="form-control" type="number" name="order" placeholder="ลำดับ" value="{{ edit.order if edit else 0 }}"></div>
         <div class="col-6 form-check d-flex align-items-center gap-2 ps-4"><input class="form-check-input" type="checkbox" name="published" id="pub" {% if not edit or edit.status == 'PUBLISHED' %}checked{% endif %}><label class="form-check-label" for="pub">เผยแพร่</label></div></div>
       <button class="btn btn-sta">บันทึก</button>{% if edit %} <a class="btn btn-link" href="{{ url_for('announcements.faq_manage') }}">ยกเลิก</a>{% endif %}</form></div></div>
-  <div class="card"><div class="card-body"><form method="post" class="d-flex gap-2">{{ m.csrf() }}<input type="hidden" name="action" value="category">
+  <div class="card"><div class="card-header">หมวด FAQ</div><ul class="list-group list-group-flush">
+    {% for c in cats %}<li class="list-group-item"><form method="post" class="d-flex gap-2">{{ m.csrf() }}<input type="hidden" name="category_id" value="{{ c.id }}">
+      <input class="form-control form-control-sm" name="name" value="{{ c.name }}" maxlength="60" required aria-label="ชื่อหมวด">
+      <button name="action" value="category_rename" class="btn btn-sm btn-outline-secondary text-nowrap"><i class="bi bi-pencil"></i> แก้ไข</button>
+      <button name="action" value="category_delete" class="btn btn-sm btn-outline-danger" data-confirm="ลบหมวด {{ c.name }}?" aria-label="ลบหมวด"><i class="bi bi-trash"></i></button></form></li>{% endfor %}</ul>
+    <div class="card-body"><form method="post" class="d-flex gap-2">{{ m.csrf() }}<input type="hidden" name="action" value="category">
     <input class="form-control form-control-sm" name="name" placeholder="หมวดใหม่"><button class="btn btn-sm btn-outline-success">เพิ่มหมวด</button></form></div></div>
 </div></div>
 {% endblock %}

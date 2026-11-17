@@ -30,12 +30,28 @@
       <td class="small">{{ divisions.get(r.division_id, {}).get('name', '-') }}{% if r.unit %}<div class="text-secondary">{{ r.unit }}</div>{% endif %}</td>
       <td class="small">{{ r.status_text or '-' }}</td>
       <td>{% if r.user_id %}<span class="badge text-bg-success">มีบัญชีแล้ว</span>{% else %}<span class="badge text-bg-warning">รอสมัครสมาชิก</span>{% endif %}</td>
-      <td><form method="post" data-confirm="ลบ {{ r.first_name }} {{ r.last_name }} ออกจากทะเบียน? ตำแหน่งที่ได้จากทะเบียนจะสิ้นสุดทันที">{{ m.csrf() }}<input type="hidden" name="action" value="delete"><input type="hidden" name="year" value="{{ year }}"><input type="hidden" name="roster_id" value="{{ r.id }}">
+      <td class="text-nowrap"><a class="btn btn-sm btn-outline-secondary" href="{{ url_for('roster.index', year=year, edit=r.id) }}" aria-label="แก้ไข"><i class="bi bi-pencil"></i></a>
+        <form method="post" class="d-inline" data-confirm="ลบ {{ r.first_name }} {{ r.last_name }} ออกจากทะเบียน? ตำแหน่งที่ได้จากทะเบียนจะสิ้นสุดทันที">{{ m.csrf() }}<input type="hidden" name="action" value="delete"><input type="hidden" name="year" value="{{ year }}"><input type="hidden" name="roster_id" value="{{ r.id }}">
         <button class="btn btn-sm btn-outline-danger" aria-label="ลบ"><i class="bi bi-trash"></i></button></form></td></tr>
     {% else %}<tr><td colspan="7">{{ m.empty('ยังไม่มีรายชื่อในทะเบียน — อัปโหลดไฟล์ด้านขวา') }}</td></tr>{% endfor %}
     </tbody></table></div></div>
 </div>
 <div class="col-lg-4">
+  {% if edit %}
+  <div class="card mb-3 border-warning"><div class="card-header">แก้ไข: {{ edit.student_code }} ({{ types[edit.member_type][0] }})</div><div class="card-body">
+    <form method="post">{{ m.csrf() }}<input type="hidden" name="action" value="edit"><input type="hidden" name="year" value="{{ year }}"><input type="hidden" name="roster_id" value="{{ edit.id }}">
+      <div class="row g-2 mb-2"><div class="col-6"><label class="form-label small mb-0" for="ef1">ชื่อ</label><input class="form-control form-control-sm" id="ef1" name="first_name" maxlength="80" required value="{{ edit.first_name }}"></div>
+        <div class="col-6"><label class="form-label small mb-0" for="ef2">นามสกุล</label><input class="form-control form-control-sm" id="ef2" name="last_name" maxlength="80" value="{{ edit.last_name }}"></div></div>
+      <label class="form-label small mb-0" for="ef3">กอง</label>
+      <select class="form-select form-select-sm mb-2" id="ef3" name="division_id" required>{% for d in divisions.values() %}<option value="{{ d.id }}" {% if d.id == edit.division_id %}selected{% endif %}>{{ d.name }}</option>{% endfor %}</select>
+      <label class="form-label small mb-0" for="ef4">ฝ่าย</label><input class="form-control form-control-sm mb-2" id="ef4" name="unit" maxlength="120" value="{{ edit.unit or '' }}">
+      <label class="form-label small mb-0" for="ef5">สาขาวิชา</label><input class="form-control form-control-sm mb-2" id="ef5" name="program" maxlength="120" value="{{ edit.program or '' }}">
+      <div class="row g-2 mb-3"><div class="col-4"><label class="form-label small mb-0" for="ef6">ชั้นปี</label><input class="form-control form-control-sm" id="ef6" type="number" min="1" max="8" name="year_level" value="{{ edit.year_level or '' }}"></div>
+        <div class="col-8"><label class="form-label small mb-0" for="ef7">สถานะในสโม</label><input class="form-control form-control-sm" id="ef7" name="status_text" maxlength="60" value="{{ edit.status_text or '' }}"></div></div>
+      <button class="btn btn-sm btn-sta">บันทึก</button> <a class="btn btn-sm btn-link" href="{{ url_for('roster.index', year=year) }}">ยกเลิก</a>
+      <div class="form-text">รหัสนักศึกษาแก้ไม่ได้ (ใช้จับคู่กับบัญชี) ถ้าผิดให้ลบแล้วเพิ่มใหม่ · ย้ายกองแล้วตำแหน่งจะย้ายตาม</div>
+    </form></div></div>
+  {% endif %}
   <div class="card mb-3"><div class="card-header">นำเข้าจากไฟล์</div><div class="card-body">
     <form method="post" enctype="multipart/form-data">{{ m.csrf() }}<input type="hidden" name="action" value="upload"><input type="hidden" name="year" value="{{ year }}">
       <label class="form-label" for="rt">ไฟล์นี้เป็นรายชื่อ</label>

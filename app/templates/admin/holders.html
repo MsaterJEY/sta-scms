@@ -17,11 +17,27 @@
     <div class="col-md-2"><input class="form-control" type="date" name="start_date" title="วันเริ่ม"></div>
     <div class="col-md-2 d-grid"><button class="btn btn-sta">เพิ่ม</button></div>
   </form></div></div>
+{% if edit %}{% set eu = users.get(edit.user_id, {}) %}
+<div class="card mb-3 border-warning"><div class="card-header">แก้ไขผู้ถือตำแหน่ง: {{ eu|uname }}</div><div class="card-body">
+  <form method="post" class="row g-2">{{ m.csrf() }}<input type="hidden" name="action" value="edit"><input type="hidden" name="year" value="{{ year }}"><input type="hidden" name="holder_id" value="{{ edit.id }}">
+    <div class="col-md-6"><label class="form-label small mb-0" for="hp">ตำแหน่ง</label><select class="form-select" id="hp" name="position_id" required>
+      {% for p in pos_list %}<option value="{{ p.id }}" {% if p.id == edit.position_id %}selected{% endif %}>[{{ p.level }}] {{ p.name }}{% if p.single_holder %} (คนเดียว){% endif %}</option>{% endfor %}</select></div>
+    <div class="col-md-3"><label class="form-label small mb-0" for="hs">วันเริ่ม</label><input class="form-control" id="hs" type="date" name="start_date" value="{{ edit.start_date or '' }}"></div>
+    <div class="col-md-3 d-flex align-items-end gap-2"><button class="btn btn-sta flex-fill">บันทึก</button><a class="btn btn-outline-secondary" href="{{ url_for('admin.holders', year=year) }}">ยกเลิก</a></div>
+  </form></div></div>
+{% endif %}
 <div class="card"><div class="table-responsive"><table class="table table-sm mb-0">
   <thead><tr><th>ตำแหน่ง</th><th>ระดับ</th><th>รหัสนักศึกษา</th><th>ชื่อ</th><th>เริ่ม</th><th>สถานะ</th><th></th></tr></thead><tbody>
   {% for h in holders %}{% set p = positions.get(h.position_id, {}) %}{% set u = users.get(h.user_id, {}) %}
   <tr><td>{{ p.name }}{% if p.locked_required %} <i class="bi bi-lock-fill text-secondary" title="locked"></i>{% endif %}</td><td class="small">{{ p.level }}</td>
     <td>{{ u.student_code or '-' }}</td><td>{{ u|uname }}</td><td class="small">{{ h.start_date }}</td><td>{{ m.badge(h.status) }}</td>
-    <td>{% if h.status == 'ACTIVE' %}<form method="post" data-confirm="สิ้นสุดการถือตำแหน่งนี้?">{{ m.csrf() }}<input type="hidden" name="action" value="end"><input type="hidden" name="holder_id" value="{{ h.id }}"><input type="hidden" name="year" value="{{ year }}"><button class="btn btn-sm btn-outline-danger">สิ้นสุด</button></form>{% endif %}</td></tr>
+    <td class="text-nowrap">{% if h.status == 'ACTIVE' %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('admin.holders', year=year, edit=h.id) }}"><i class="bi bi-pencil"></i> แก้ไข</a>
+      <form method="post" class="d-inline" data-confirm="สิ้นสุดการถือตำแหน่งนี้?">{{ m.csrf() }}<input type="hidden" name="action" value="end"><input type="hidden" name="holder_id" value="{{ h.id }}"><input type="hidden" name="year" value="{{ year }}"><button class="btn btn-sm btn-outline-danger">สิ้นสุด</button></form>{% endif %}</td></tr>
   {% else %}<tr><td colspan="7">{{ m.empty() }}</td></tr>{% endfor %}</tbody></table></div></div>
+<div class="card mt-3"><div class="card-header">ชื่อกอง</div><ul class="list-group list-group-flush">
+  {% for d in divisions %}<li class="list-group-item"><form method="post" class="d-flex gap-2 align-items-center">{{ m.csrf() }}<input type="hidden" name="action" value="rename_division"><input type="hidden" name="year" value="{{ year }}"><input type="hidden" name="code" value="{{ d.id }}">
+    <span class="small text-secondary text-nowrap" style="min-width:5.5rem">{{ d.id }}</span>
+    <input class="form-control form-control-sm" name="name" value="{{ d.name }}" maxlength="80" required aria-label="ชื่อกอง {{ d.id }}">
+    <button class="btn btn-sm btn-outline-secondary text-nowrap"><i class="bi bi-pencil"></i> แก้ไข</button></form></li>{% endfor %}</ul>
+  <div class="card-body py-2"><div class="form-text mt-0">แก้ชื่อแล้วกด "แก้ไข" ชื่อใหม่จะแสดงทุกหน้าทันที (ทะเบียน สรุปรายชื่อ โครงสร้างองค์กร รับสมัครทีมงาน) รหัสกองไม่เปลี่ยน</div></div></div>
 {% endblock %}

@@ -12,6 +12,26 @@ from ..utils import DEFAULT_SETTINGS, form_dt, now_iso, parse_dt, now, settings,
 bp = Blueprint("admin", __name__, url_prefix="/admin")
 
 
+def rename_division(code, name):
+    """เปลี่ยนชื่อกอง (รหัสกองคงเดิม ข้อมูลที่อ้างถึงกองจึงไม่กระทบ) คืน True ถ้าเปลี่ยนสำเร็จ"""
+    d = repo().get("divisions", code)
+    name = (name or "").strip()[:80]
+    if not d or not name:
+        flash("กรุณาระบุชื่อกอง", "danger")
+        return False
+    if name != d.get("name"):
+        repo().update("divisions", code, {"name": name})
+        audit("division.rename", "division", code, old=d.get("name"), new=name)
+    flash(f"เปลี่ยนชื่อกองเป็น \"{name}\" แล้ว", "success")
+    return True
+
+
+def division_usage(code):
+    """จำนวนข้อมูลที่อ้างถึงกองนี้ ใช้ตัดสินว่าลบได้หรือไม่"""
+    n = len(repo().where("positions", division_id=code)) + len(repo().where("team_positions", division_id=code))
+    return n + len(repo().where("documents", division_id=code)) + len(repo().where("member_roster", division_id=code))
+
+
 # ---------- บัญชีผู้ใช้ ----------
 def _filter_users(args):
     users = repo().all("users")
@@ -92,6 +112,27 @@ def years():
             repo().set("academic_years", str(y), {"name": str(y), "start_date": request.form.get("start_date"),
                                                   "end_date": request.form.get("end_date"), "is_current": False})
             audit("year.add", "academic_year", str(y))
+        elif action == "edit":
+            y = request.form.get("year")
+            ay = repo().get("academic_years", y) or abort(404)
+            new = {"start_date": request.form.get("start_date") or None, "end_date": request.form.get("end_date") or None}
+            if new["start_date"] and new["end_date"] and new["end_date"] < new["start_date"]:
+                flash("วันสิ้นสุดต้องไม่ก่อนวันเริ่ม", "danger")
+            else:
+                repo().update("academic_years", y, new)
+                audit("year.edit", "academic_year", y, old={k: ay.get(k) for k in new}, new=new)
+                flash(f"แก้ไขปีการศึกษา {y} แล้ว", "success")
+        elif action == "delete":
+            y = request.form.get("year")
+            ay = repo().get("academic_years", y) or abort(404)
+            used = ay.get("is_current") or repo().where("position_holders", academic_year=int(y)) or any(
+                p.get("academic_year") == int(y) for p in repo().all("positions"))
+            if used:
+                flash("ลบไม่ได้: เป็นวาระปัจจุบัน หรือมีผังตำแหน่ง/ผู้ถือตำแหน่งของปีนี้อยู่", "danger")
+            else:
+                repo().delete("academic_years", y)
+                audit("year.delete", "academic_year", y)
+                flash(f"ลบปีการศึกษา {y} แล้ว", "info")
         elif action == "current":
             y = request.form["year"]
             # ตรวจตำแหน่ง locked ต้องมีผู้ถือครบก่อนเปิดวาระ (ORG-02)
@@ -150,6 +191,26 @@ def holders():
                 audit("holder.add", "position_holder", hid, new={"user": found[0]["id"], "position": pos["code"], "year": year})
                 notify(found[0]["id"], "คุณได้รับการแต่งตั้งเป็น " + pos["name"], f"ปีการศึกษา {year}", url_for("auth.profile"))
                 flash("เพิ่มผู้ถือตำแหน่งแล้ว", "success")
+        elif action == "rename_division":
+            rename_division(request.form.get("code"), request.form.get("name"))
+        elif action == "edit":
+            h = repo().get("position_holders", request.form.get("holder_id")) or abort(404)
+            pos = positions.get(request.form.get("position_id"))
+            if h.get("academic_year") != year or h.get("status") != "ACTIVE":
+                abort(400)
+            if not pos or not in_year(pos, year):
+                flash("ไม่พบตำแหน่งที่เลือก", "danger")
+            elif pos["id"] != h["position_id"] and pos.get("single_holder") and repo().where(
+                    "position_holders", position_id=pos["id"], academic_year=year, status="ACTIVE"):
+                flash(f"ตำแหน่ง {pos['name']} มีผู้ถือได้คนเดียวและมีผู้ถืออยู่แล้วในปี {year}", "danger")
+            else:
+                new = {"position_id": pos["id"], "position_code": pos["code"],
+                       "start_date": request.form.get("start_date") or h.get("start_date")}
+                repo().update("position_holders", h["id"], new)
+                audit("holder.edit", "position_holder", h["id"], old={k: h.get(k) for k in new}, new=new)
+                if pos["id"] != h["position_id"]:
+                    notify(h["user_id"], "ตำแหน่งของคุณถูกแก้ไขเป็น " + pos["name"], f"ปีการศึกษา {year}", url_for("auth.profile"))
+                flash("แก้ไขผู้ถือตำแหน่งแล้ว", "success")
         elif action == "end":
             h = repo().get("position_holders", request.form.get("holder_id"))
             if h:
@@ -169,7 +230,10 @@ def holders():
     vacant = [{"name": p["name"], "backup": ", ".join(FUNCTIONS.get(x, (x,))[0] for x in p.get("fallback_functions") or [])}
               for p in vacant_fallback_positions(year)]
     return render_template("admin/holders.html", holders=hs, users=users, positions=positions, pos_list=pos_list,
-                           year=year, missing=missing, vacant=vacant, years=sorted(repo().all("academic_years"), key=lambda y: y["id"]))
+                           year=year, missing=missing, vacant=vacant,
+                           divisions=sorted(repo().all("divisions"), key=lambda d: d["id"]),
+                           edit=next((h for h in hs if h["id"] == request.args.get("edit") and h.get("status") == "ACTIVE"), None),
+                           years=sorted(repo().all("academic_years"), key=lambda y: y["id"]))
 
 
 @dataset("holders")
@@ -207,6 +271,18 @@ def positions():
                 repo().set("divisions", code, {"code": code, "name": f.get("name", "").strip()})
                 audit("division.save", "division", code)
                 flash("บันทึกกองแล้ว", "success")
+        elif action == "rename_division":
+            rename_division(f.get("code"), f.get("name"))
+        elif action == "delete_division":
+            code = f.get("code")
+            d = repo().get("divisions", code) or abort(404)
+            n = division_usage(code)
+            if n:
+                flash(f"ลบกอง {d.get('name')} ไม่ได้: มีตำแหน่งหรือข้อมูลอ้างถึงกองนี้ {n} รายการ (เปลี่ยนชื่อได้)", "danger")
+            else:
+                repo().delete("divisions", code)
+                audit("division.delete", "division", code, old={"name": d.get("name")})
+                flash(f"ลบกอง {d.get('name')} แล้ว", "info")
         elif action == "position":
             pid = f.get("position_id")
             existing = repo().get("positions", pid) if pid else None
@@ -266,7 +342,7 @@ def positions():
             # เพิ่มกอง/ตำแหน่งตั้งต้นที่ยังไม่มี (เช่น กองที่เพิ่มในรุ่นใหม่) ไม่แก้ของที่มีอยู่แล้ว
             from ..seed import run_seed
             before = (len(repo().all("divisions")), len(repo().all("positions")))
-            run_seed(current_year())
+            run_seed(current_year())  # รวมการปรับชื่อตั้งต้นที่เปลี่ยนในรุ่นใหม่ (เฉพาะรายการที่ยังใช้ชื่อเดิม)
             after = (len(repo().all("divisions")), len(repo().all("positions")))
             audit("system.seed_defaults", "system_settings", "seed_info", new={"divisions": after[0] - before[0], "positions": after[1] - before[1]})
             flash(f"เพิ่มกอง {after[0] - before[0]} กอง และตำแหน่ง {after[1] - before[1]} ตำแหน่งที่ยังไม่มี", "success")
@@ -291,13 +367,30 @@ def positions():
     for p in pos:
         p["holder_count"] = sum(1 for h in holders if h["position_id"] == p["id"])
         p["parent_name"] = (by_id.get(p.get("parent_id")) or {}).get("name")
+    from .org import DIVISION_ORDER, _depth
+    div_names = {d["id"]: d.get("name") for d in divs}
+    for p in pos:
+        p["depth"] = _depth(p, by_id)
+    board = [p for p in pos if p.get("level") == "BOARD"]
+    order = DIVISION_ORDER + sorted(d for d in div_names if d not in DIVISION_ORDER)
+    groups = [{"title": "ส่วนกลาง (ไม่สังกัดกอง)", "icon": "star", "rows": [p for p in board if not p.get("division_id")]}]
+    for d in order:
+        rows = [p for p in pos if p.get("division_id") == d]
+        if d in div_names or rows:
+            groups.append({"title": div_names.get(d, d), "icon": "diagram-3", "rows": rows})
+    rest = [p for p in pos if p.get("level") != "BOARD" and not p.get("division_id")]
+    if rest:
+        groups.append({"title": "อื่น ๆ (ใช้ทุกปี)", "icon": "people", "rows": rest})
+    for g in groups:
+        g["rows"].sort(key=lambda p: (level_order.get(p.get("level"), 9), p["depth"], p.get("name") or ""))
+    groups = [g for g in groups if g["rows"]]
     old_codes = set(OLD_POSITIONS) | set(OLD_DIVISIONS)
     needs_migration = not (repo().get("system_settings", "migrations") or {}).get("v3") and (
         any(p["id"] in old_codes for p in every) or any(d["id"] in old_codes for d in divs)
         or any(p.get("level") == "BOARD" and "function_code" not in p for p in every))
     return render_template("admin/positions.html", divs=divs, pos=pos, role_labels=ROLE_LABELS, functions=FUNCTIONS,
                            year=year, years=sorted(repo().all("academic_years"), key=lambda y: y["id"]),
-                           needs_migration=needs_migration,
+                           needs_migration=needs_migration, groups=groups,
                            edit=repo().get("positions", request.args.get("edit")) if request.args.get("edit") else None)
 
 
